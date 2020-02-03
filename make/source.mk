@@ -382,7 +382,8 @@ SRC += $(COMMON_SRC)
 
 # Add Eigen library for AOT compilation
 
-INCLUDE_DIRS += $(ROOT)/lib/main/eigen
+INCLUDE_DIRS += $(TENSORFLOW_DIR)/bazel-tensorflow/external/eigen_archive
+INCLUDE_DIRS += /usr/lib/x86_64-linux-gnu
 INCLUDE_DIRS += $(TENSORFLOW_DIR)
 
 #excludes
