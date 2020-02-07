@@ -952,7 +952,7 @@ void taskMainPidLoop(timeUs_t currentTimeUs)
         pidUpdateCountdown--;
     } else {
         pidUpdateCountdown = pidConfig()->pid_process_denom - 1;
-        neuroController(currentTimeUs);
+        neuroController(currentTimeUs, currentPidProfile);
         subTaskMotorUpdate(currentTimeUs);
         subTaskMainSubprocesses(currentTimeUs);
     }

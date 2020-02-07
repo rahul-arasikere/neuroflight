@@ -18,6 +18,7 @@
 #include "sensors/gyro.h"
 #include "graph/graph_interface.h"
 #include "graph_dim.h"
+#include "common/filter.h"
 
 
 /* An array containing inputs for the neural network 
@@ -28,23 +29,181 @@ static float graphOutput[GRAPH_OUTPUT_SIZE];
 static float controlOutput[GRAPH_OUTPUT_SIZE];
 static float previousOutput[GRAPH_OUTPUT_SIZE];
 
-void neuroInit()
+static bool initFlag = true;
+
+
+
+static FAST_RAM filterApplyFnPtr dtermNotchFilterApplyFn;
+static FAST_RAM void *dtermFilterNotch[3];
+static FAST_RAM filterApplyFnPtr dtermLpfApplyFn;
+static FAST_RAM void *dtermFilterLpf[3];
+
+static FAST_RAM float dT;
+
+
+typedef union dtermFilterLpf_u {
+    pt1Filter_t pt1Filter[3];
+    biquadFilter_t biquadFilter[3];
+    firFilterDenoise_t denoisingFilter[3];
+} dtermFilterLpf_t;
+
+void neuroInitFilters(const pidProfile_t *pidProfile)
 {
+    // BUILD_BUG_ON(FD_YAW != 2); // only setting up Dterm filters on roll and pitch axes, so ensure yaw axis is 2
+    float targetLooptime = gyro.targetLooptime;
+    dT = (float)gyro.targetLooptime * 0.000001f;
+    if (targetPidLooptime == 0) {
+        // no looptime set, so set all the filters to null
+        dtermNotchFilterApplyFn = nullFilterApply;
+        dtermLpfApplyFn = nullFilterApply;
+        return;
+    }
+
+    const uint32_t pidFrequencyNyquist = (1.0f / dT) / 2; // No rounding needed
+
+    uint16_t dTermNotchHz;
+    if (pidProfile->dterm_notch_hz <= pidFrequencyNyquist) {
+        dTermNotchHz = pidProfile->dterm_notch_hz;
+    } else {
+        if (pidProfile->dterm_notch_cutoff < pidFrequencyNyquist) {
+            dTermNotchHz = pidFrequencyNyquist;
+        } else {
+            dTermNotchHz = 0;
+        }
+    }
+
+    if (dTermNotchHz != 0 && pidProfile->dterm_notch_cutoff != 0) {
+        static biquadFilter_t biquadFilterNotch[3];
+        dtermNotchFilterApplyFn = (filterApplyFnPtr)biquadFilterApply;
+        const float notchQ = filterGetNotchQ(dTermNotchHz, pidProfile->dterm_notch_cutoff);
+        for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
+            dtermFilterNotch[axis] = &biquadFilterNotch[axis];
+            biquadFilterInit(dtermFilterNotch[axis], dTermNotchHz, targetPidLooptime, notchQ, FILTER_NOTCH);
+        }
+    } else {
+        dtermNotchFilterApplyFn = nullFilterApply;
+    }
+
+    static dtermFilterLpf_t dtermFilterLpfUnion;
+    if (pidProfile->dterm_lpf_hz == 0 || pidProfile->dterm_lpf_hz > pidFrequencyNyquist) {
+        dtermLpfApplyFn = nullFilterApply;
+    } else {
+        switch (pidProfile->dterm_filter_type) {
+        default:
+            dtermLpfApplyFn = nullFilterApply;
+            break;
+        case FILTER_PT1:
+            dtermLpfApplyFn = (filterApplyFnPtr)pt1FilterApply;
+            for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
+                dtermFilterLpf[axis] = &dtermFilterLpfUnion.pt1Filter[axis];
+                pt1FilterInit(dtermFilterLpf[axis], pidProfile->dterm_lpf_hz, dT);
+            }
+            break;
+        case FILTER_BIQUAD:
+            dtermLpfApplyFn = (filterApplyFnPtr)biquadFilterApply;
+            for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
+                dtermFilterLpf[axis] = &dtermFilterLpfUnion.biquadFilter[axis];
+                biquadFilterInitLPF(dtermFilterLpf[axis], pidProfile->dterm_lpf_hz, targetPidLooptime);
+            }
+            break;
+        case FILTER_FIR:
+            dtermLpfApplyFn = (filterApplyFnPtr)firFilterDenoiseUpdate;
+            for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
+                dtermFilterLpf[axis] = &dtermFilterLpfUnion.denoisingFilter[axis];
+                firFilterDenoiseInit(dtermFilterLpf[axis], pidProfile->dterm_lpf_hz, targetPidLooptime);
+            }
+            break;
+        }
+    }
 }
 
-float* init() {
-    // float[] are not acceptable return values.
-    static float initMe[GRAPH_OUTPUT_SIZE];
+void neuroInit(const pidProfile_t *pidProfile)
+{
+    neuroInitFilters(pidProfile);
     for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
-        initMe[i] = -1; 
+        previousOutput[i] = -1; 
     }
-    return initMe;
+
 }
+
 
 void evaluateGraphWithErroeDeltaTargetDeltaStateAct(timeUs_t currentTimeUs){
     static timeUs_t previousTime;
     static float previousSetpoint[3];
-    static float previousGyro[3];
+    static float previousGyroFiltered[3];
+
+    const float deltaT = ((float)(currentTimeUs - previousTime))/1000000.0f;
+    previousTime = currentTimeUs;
+
+    //Prepare the neural network inputs
+    // Set the current error and deriviate
+    for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
+
+        float currentSetpoint = getSetpointRate(axis);
+        float changeInSetpoint = currentSetpoint - previousSetpoint[axis];
+        float gyroRate = gyro.gyroADCf[axis];
+        float gyroRateFiltered = dtermNotchFilterApplyFn(dtermFilterNotch[axis], gyro.gyroADCf[axis]);
+        gyroRateFiltered = dtermLpfApplyFn(dtermFilterLpf[axis], gyroRate);
+        const float gyroDelta = gyroRateFiltered - previousGyroFiltered[axis]; 
+        float errorRate = currentSetpoint - gyroRate; 
+        graphInput[axis] = errorRate;
+
+        if (debugMode == DEBUG_NN_SPDELTA) {
+            debug[axis] = (int16_t)(1000*changeInSetpoint);
+        }
+
+        if (debugMode == DEBUG_NN_GYDELTA) {
+            debug[axis] = (int16_t)(1000*gyroDelta);
+        }
+
+        if (debugMode == DEBUG_NN_ERR_RATE) {
+            debug[axis] = (int16_t)(1000*errorRate);
+        }
+
+        //TODO We need to include delta time because the loop is not fixed
+        graphInput[axis + 3] = changeInSetpoint;
+        graphInput[axis + 6] = gyroDelta;
+
+        previousSetpoint[axis] = currentSetpoint;
+        previousGyroFiltered[axis] = gyroRateFiltered;
+    }
+
+    for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
+        graphInput[i+9] = previousOutput[i];
+    }
+    
+    // if (debugMode == DEBUG_NN_OUT) {
+    //     for (int i = 0; i<GRAPH_INPUT_SIZE; i++){
+    //         debug[i] = (int16_t)(graphInput[i] * 1000.0);
+    //     }
+    // }
+
+    if (debugMode == DEBUG_NN_ACT_IN) {
+        for (int i = 0; i<GRAPH_OUTPUT_SIZE; i++){
+            debug[i] = (int16_t)(previousOutput[i] * 1000.0);
+        }
+    }
+
+    //Evaluate the neural network graph and convert to range [-1,1]->[0,1]
+    run_graph(graphInput, GRAPH_INPUT_SIZE, graphOutput, GRAPH_OUTPUT_SIZE);
+
+    for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
+        float filtered = previousOutput[i]*0.95 + graphOutput[i]*0.05;
+        controlOutput[i] = transformScale(constrainf(filtered, -1.0f, 1.0f), -1.0f, 1.0f, 0, 1);
+        previousOutput[i] = filtered;
+    }
+
+    if (debugMode == DEBUG_NN_OUT) {
+        for (int i = 0; i<GRAPH_OUTPUT_SIZE; i++){
+            debug[i] = (int16_t)(previousOutput[i] * 1000.0);
+        }
+    }
+}
+
+
+void evaluateGraphWithErrorDerivateError(timeUs_t currentTimeUs){
+    static timeUs_t previousTime;
+    static float previousRateError[3];
 
     const float deltaT = ((float)(currentTimeUs - previousTime))/1000000.0f;
     previousTime = currentTimeUs;
@@ -53,22 +212,16 @@ void evaluateGraphWithErroeDeltaTargetDeltaStateAct(timeUs_t currentTimeUs){
     // Set the current error and deriviate
     for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
         float currentSetpoint = getSetpointRate(axis);
-        float changeInSetpoint = currentSetpoint - previousSetpoint[axis];
-        const float gyroRate = gyro.gyroADCf[axis]; 
-        const float gyroDelta = gyroRate - previousGyro[axis]; 
-        float errorRate = currentSetpoint - gyroRate; 
-        graphInput[axis] = errorRate;
+        float gyroRate = dtermNotchFilterApplyFn(dtermFilterNotch[axis], gyro.gyroADCf[axis]);
+        gyroRate = dtermLpfApplyFn(dtermFilterLpf[axis], gyroRate);
+		float errorRate = currentSetpoint - gyroRate; 
+		graphInput[axis] = errorRate;
 
         //TODO We need to include delta time because the loop is not fixed
-        graphInput[axis + 3] = changeInSetpoint;
-        graphInput[axis + 6] = gyroDelta;
+        float delta = (errorRate - previousRateError[axis]);
+        graphInput[axis + 3] = delta;
 
-        previousSetpoint[axis] = currentSetpoint;
-        previousGyro[axis] = gyroRate;
-    }
-
-    for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
-        graphInput[i+9] = previousOutput[i];
+        previousRateError[axis] = errorRate;
     }
     /*  
     if (debugMode == DEBUG_NN_OUT) {
@@ -80,76 +233,25 @@ void evaluateGraphWithErroeDeltaTargetDeltaStateAct(timeUs_t currentTimeUs){
 
     //Evaluate the neural network graph and convert to range [-1,1]->[0,1]
     run_graph(graphInput, GRAPH_INPUT_SIZE, graphOutput, GRAPH_OUTPUT_SIZE);
-
     for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
-        float output = graphOutput[i];
-        graphOutput[i] = previousOutput[i]*0.95 + output*0.05;
-        graphOutput[i] = constrainf(graphOutput[i], -1.0f, 1.0f);
-        controlOutput[i] = transformScale(graphOutput[i], -1.0f, 1.0f, 0.0f, 1.0f); 
-        previousOutput[i] = output;
-
+        controlOutput[i] = transformScale(constrainf(graphOutput[i], -1.0f, 1.0f), -1.0f, 1.0f, 0, 1); 
     }
 
-    /* 
     if (debugMode == DEBUG_NN_OUT) {
         for (int i = 0; i<GRAPH_OUTPUT_SIZE; i++){
-            debug[GRAPH_INPUT_SIZE + i] = (int16_t)(controlOutput[i] * 1000.0);
+            debug[i] = (int16_t)(controlOutput[i] * 1000.0);
         }
     }
-    */
 }
-
-void neuroController(timeUs_t currentTimeUs){
-    evaluateGraphWithErroeDeltaTargetDeltaStateAct(currentTimeUs);
+void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
+    if(initFlag) {
+        neuroInit(pidProfile);
+        initFlag = false;
+    }
+    // evaluateGraphWithErroeDeltaTargetDeltaStateAct(currentTimeUs);
+    evaluateGraphWithErrorDerivateError(currentTimeUs);
 	mixGraphOutput(currentTimeUs, controlOutput);
 }
 float transformScale(float value, float oldLow, float oldHigh, float newLow, float newHigh){
 	return ((value - oldLow) / (oldHigh - oldLow)) * (newHigh - newLow) + newLow;
 }
-
-
-
-// void evaluateGraphWithErrorDerivateError(timeUs_t currentTimeUs){
-//     static timeUs_t previousTime;
-//     static float previousRateError[3];
-
-//     const float deltaT = ((float)(currentTimeUs - previousTime))/1000000.0f;
-//     previousTime = currentTimeUs;
-
-//     //Prepare the neural network inputs
-//     // Set the current error and deriviate
-//     for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
-//         float currentSetpoint = getSetpointRate(axis);
-//         const float gyroRate = gyro.gyroADCf[axis]; 
-// 		float errorRate = currentSetpoint - gyroRate; 
-// 		graphInput[axis] = errorRate;
-
-//         //TODO We need to include delta time because the loop is not fixed
-//         float delta = (errorRate - previousRateError[axis]);
-//         graphInput[axis + 3] = delta;
-
-//         previousRateError[axis] = errorRate;
-//     }
-//     /*  
-//     if (debugMode == DEBUG_NN_OUT) {
-//         for (int i = 0; i<GRAPH_INPUT_SIZE; i++){
-//             debug[i] = (int16_t)(graphInput[i] * 1000.0);
-//         }
-//     }
-//     */
-
-//     //Evaluate the neural network graph and convert to range [-1,1]->[0,1]
-// 	compute_motor_values(graphInput, graphOutput, GRAPH_INPUT_SIZE, GRAPH_OUTPUT_SIZE);
-//     for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++){
-//         controlOutput[i] = transformScale(graphOutput[i], -1.0f, 1.0f, 0, 1); 
-//     }
-
-//     /* 
-//     if (debugMode == DEBUG_NN_OUT) {
-//         for (int i = 0; i<GRAPH_OUTPUT_SIZE; i++){
-//             debug[GRAPH_INPUT_SIZE + i] = (int16_t)(controlOutput[i] * 1000.0);
-//         }
-//     }
-//     */
-// }
-

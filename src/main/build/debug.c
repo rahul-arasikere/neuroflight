@@ -57,4 +57,9 @@ const char * const debugModeNames[DEBUG_COUNT] = {
     "LIDAR_TF",
     "CORE_TEMP",
     "RUNAWAY_TAKEOFF",
+    "NN_OUT",
+    "NN_SPDELTA",
+    "NN_GYDELTA",
+    "NN_ERR_RATE",
+    "NN_ACT_IN"
 };
