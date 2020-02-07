@@ -78,7 +78,7 @@ TARGET_OBJS += $(addsuffix .o,$(addprefix $(OBJECT_DIR)/$(TARGET)/,$(basename $(
 
 # Clean neuroflight generatred files
 CLEAN_ARTIFACTS += $(TARGET_GRAPH_OBJS)
-
+CLEAN_ARTIFACTS += $(GEN_SRC)/graph_dim.h
 # Targets
 #########################################################################
 
@@ -86,7 +86,6 @@ $(GEN_SRC)/graph_dim.h :
 	$(V1) mkdir -p $(dir $@)
 	python3 $(GRAPH_TOOLS_DIR)/gen_graph_config_header.py $(FC_MODEL_DIR) $(GEN_SRC)
 	echo "%% Generated graph_dim.h"
-
 
 
 
