@@ -801,29 +801,25 @@ void mixGraphOutput(timeUs_t currentTimeUs, float *graph_output)
     calculateThrottleAndCurrentMotorEndpoints(currentTimeUs);
 
 	//Get min and max from the output
-	float outputMin = 1.0f;
+	float outputMax = 0, outputMin = 1.0f;
 	for (int i = 0; i < motorCount; i++) {
 		float output = graph_output[i]; 
-		if (output < outputMin) {
+		if (output > outputMax) {
+			outputMax = output;
+		}
+        if (output < outputMin) {
 			outputMin = output;
 		}
 	}
-
 
     for (int i = 0; i < motorCount; i++) {
         graph_output[i] -= outputMin;
     }
 
-    float outputMax = 0
 
-    for (int i = 0; i < motorCount; i++) {
-        float output = graph_output[i]; 
-        if (output > outputMax) {
-            outputMax = output;
-        }
-    }
+    motorMixRange = outputMax - outputMin;
 
-	float throttle_output = throttle * (1.0f - outputMax);
+	float throttle_output = throttle * (1.0f - motorMixRange);
 
     for (uint32_t i = 0; i < motorCount; i++) {
         //float motorOutput = motorOutputMin + (motorOutputRange * (motorOutputMixSign * graph_output[i] + throttle_output * currentMixer[i].throttle));
@@ -837,3 +833,4 @@ void mixGraphOutput(timeUs_t currentTimeUs, float *graph_output)
         }
     }
 }
+
