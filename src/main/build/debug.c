@@ -60,6 +60,8 @@ const char * const debugModeNames[DEBUG_COUNT] = {
     "NN_OUT",
     "NN_SPDELTA",
     "NN_GYDELTA",
+    "NN_GYRATE",
     "NN_ERR_RATE",
-    "NN_ACT_IN"
+    "NN_ACT_IN",
+    "NN_DT"
 };

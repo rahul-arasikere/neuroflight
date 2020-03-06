@@ -78,8 +78,10 @@ typedef enum {
     DEBUG_NN_OUT,
     DEBUG_NN_SPDELTA,
     DEBUG_NN_GYDELTA,
+    DEBUG_NN_GYRATE,
     DEBUG_NN_ERR_RATE,
     DEBUG_NN_ACT_IN,
+    DEBUG_NN_DT,
     DEBUG_COUNT
 } debugType_e;
 
