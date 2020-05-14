@@ -59,6 +59,7 @@ const char * const debugModeNames[DEBUG_COUNT] = {
     "RUNAWAY_TAKEOFF",
     "NN_OUT",
     "NN_SPDELTA",
+    "NN_SP",
     "NN_GYDELTA",
     "NN_GYRATE",
     "NN_ERR_RATE",
