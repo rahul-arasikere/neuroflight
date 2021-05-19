@@ -116,7 +116,6 @@ FC_SRC = \
             flight/mixer.c \
             flight/mixer_tricopter.c \
             flight/pid.c \
-            graph/neuro.c \
             flight/servos.c \
             flight/servos_tricopter.c \
             interface/cli.c \

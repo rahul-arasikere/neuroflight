@@ -105,8 +105,10 @@ FATFS_DIR       = $(ROOT)/lib/main/FatFS
 FATFS_SRC       = $(notdir $(wildcard $(FATFS_DIR)/*.c))
 
 CSOURCES        := $(shell find $(SRC_DIR) -name '*.c')
+CSOURCES        += $(shell find $(SRC_DIR) -name '*.cc')
 
 LD_FLAGS         :=
+STATIC_LIBS      :=
 
 #
 # Default Tool options - can be overridden in {mcu}.mk files.
@@ -168,6 +170,7 @@ INCLUDE_DIRS    := $(INCLUDE_DIRS) \
 VPATH           := $(VPATH):$(TARGET_DIR)
 
 include $(ROOT)/make/source.mk
+include $(ROOT)/make/tflite.mk
 
 
 ###############################################################################
@@ -206,6 +209,7 @@ CFLAGS     += $(ARCH_FLAGS) \
               -ffunction-sections \
               -fdata-sections \
               -pedantic \
+              -fno-strict-aliasing\
               $(DEVICE_FLAGS) \
               -DUSE_STDPERIPH_DRIVER \
               -D$(TARGET) \
@@ -214,6 +218,30 @@ CFLAGS     += $(ARCH_FLAGS) \
               -D'__TARGET__="$(TARGET)"' \
               -D'__REVISION__="$(REVISION)"' \
               -save-temps=obj \
+              -MMD -MP \
+              $(EXTRA_FLAGS)
+
+CXXFLAGS     += $(ARCH_FLAGS) \
+              $(addprefix -D,$(OPTIONS)) \
+              $(addprefix -I,$(INCLUDE_DIRS)) \
+              $(DEBUG_FLAGS) \
+              -std=c++11 \
+              -Wall -Wextra -Wunsafe-loop-optimizations -Wdouble-promotion \
+              -ffunction-sections \
+              -fdata-sections \
+              -pedantic \
+              -fno-strict-aliasing\
+              $(DEVICE_FLAGS) \
+              -DUSE_STDPERIPH_DRIVER \
+              -D$(TARGET) \
+              $(TARGET_FLAGS) \
+              -D'__FORKNAME__="$(FORKNAME)"' \
+              -D'__TARGET__="$(TARGET)"' \
+              -D'__REVISION__="$(REVISION)"' \
+              -save-temps=obj \
+              -fpermissive \
+              -fno-use-cxa-atexit \
+              -DTF_LITE_STATIC_MEMORY \
               -MMD -MP \
               $(EXTRA_FLAGS)
 
@@ -269,7 +297,7 @@ CLEAN_ARTIFACTS += $(TARGET_LST)
 
 
 # Neuroflight specifics 
-include $(ROOT)/make/neuroflight.mk
+#include $(ROOT)/make/neuroflight.mk
 
 # Make sure build date and revision is updated on every incremental build
 $(OBJECT_DIR)/$(TARGET)/build/version.o : $(SRC)
@@ -290,7 +318,7 @@ $(TARGET_BIN): $(TARGET_ELF)
 
 $(TARGET_ELF):  $(TARGET_OBJS)  
 	@echo "Linking $(TARGET)" "$(STDOUT)"
-	$(V1) $(CROSS_CXX) -o $@ $^ $(LD_FLAGS)
+	$(V1) $(CROSS_CXX) -o $@ $^ $(STATIC_LIBS) $(LD_FLAGS)
 	$(V1) $(SIZE) $(TARGET_ELF)
 
 # Compile
@@ -310,6 +338,16 @@ $(OBJECT_DIR)/$(TARGET)/%.o: %.c
 	$(CROSS_CC) -c -o $@ $(CFLAGS) $(CC_SIZE_OPTIMISATION) $<, \
 	echo "%% $(notdir $<)" "$(STDOUT)" && \
 	$(CROSS_CC) -c -o $@ $(CFLAGS) $(CC_DEFAULT_OPTIMISATION) $<))
+$(OBJECT_DIR)/$(TARGET)/%.o: %.cc
+	$(V1) mkdir -p $(dir $@)
+	$(V1) $(if $(findstring $(subst ./src/main/,,$<),$(SPEED_OPTIMISED_SRC)), \
+	echo "%% (speed optimised) $(notdir $<)" "$(STDOUT)" && \
+	$(CROSS_CXX) -c -o $@ $(CXXFLAGS) $(CC_SPEED_OPTIMISATION) $<, \
+	$(if $(findstring $(subst ./src/main/,,$<),$(SIZE_OPTIMISED_SRC)), \
+	echo "%% (size optimised) $(notdir $<)" "$(STDOUT)" && \
+	$(CROSS_CXX) -c -o $@ $(CXXFLAGS) $(CC_SIZE_OPTIMISATION) $<, \
+	echo "%% $(notdir $<)" "$(STDOUT)" && \
+	$(CROSS_CXX) -c -o $@ $(CXXFLAGS) $(CC_DEFAULT_OPTIMISATION) $<))
 endif
 
 
