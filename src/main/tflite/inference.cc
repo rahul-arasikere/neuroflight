@@ -2,7 +2,6 @@
 
 
 tflite::MicroInterpreter* init_model(const void *buf, bool update) {
-
 	static tflite::MicroErrorReporter micro_error_reporter;
 	static const int tensor_arena_size = 20 * 1024; //limit of 100kb
 	static const uint8_t tensor_arena[tensor_arena_size];

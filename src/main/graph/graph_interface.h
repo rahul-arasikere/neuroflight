@@ -5,7 +5,7 @@
 #endif
 
 
-EXTERNC void run_graph(float *input, int input_size, float *output, int output_size);
+EXTERNC void infer(float *input, int input_size, float *output, int output_size);
 
 
 #undef EXTERNC
