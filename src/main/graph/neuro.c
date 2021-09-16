@@ -19,6 +19,8 @@
 #include "graph/graph_interface.h"
 #include "graph_dim.h"
 #include "common/filter.h"
+#include "io/serial.h"
+#include "common/printf.h"
 
 
 /* An array containing inputs for the neural network 
@@ -198,7 +200,7 @@ void evaluateGraphWithErroeDeltaTargetDeltaStateAct(timeUs_t currentTimeUs){
     }
 
     //Evaluate the neural network graph and convert to range [-1,1]->[0,1]
-    run_graph(graphInput, GRAPH_INPUT_SIZE, graphOutput, GRAPH_OUTPUT_SIZE);
+    infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, GRAPH_OUTPUT_SIZE);
 
     for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
         float filtered = previousOutput[i]*0.9 + graphOutput[i]*0.1;
@@ -268,7 +270,7 @@ void evaluateGraphWithErrorStateDeltaStateActRelative(timeUs_t currentTimeUs){
     }
 
     //Evaluate the neural network graph and convert to range [-1,1]->[0,1]
-    run_graph(graphInput, GRAPH_INPUT_SIZE, graphOutput, GRAPH_OUTPUT_SIZE);
+    infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, GRAPH_OUTPUT_SIZE);
 
     for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
         float new_output = previousOutput[i] + graphOutput[i]*0.2;
@@ -341,7 +343,7 @@ void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
     }
 
     //Evaluate the neural network graph and convert to range [-1,1]->[0,1]
-    run_graph(graphInput, GRAPH_INPUT_SIZE, graphOutput, GRAPH_OUTPUT_SIZE);
+    infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, GRAPH_OUTPUT_SIZE);
 
     for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
         float new_output = graphOutput[i];
@@ -420,7 +422,7 @@ void evaluateGraphWithErrorTargetDeltaStateActRelative(timeUs_t currentTimeUs){
     }
 
     //Evaluate the neural network graph and convert to range [-1,1]->[0,1]
-    // run_graph(graphInput, GRAPH_INPUT_SIZE, graphOutput, GRAPH_OUTPUT_SIZE);
+    // infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, GRAPH_OUTPUT_SIZE);
 
     for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
         float new_output = previousOutput[i] + graphOutput[i]*0.2;
@@ -436,6 +438,7 @@ void evaluateGraphWithErrorTargetDeltaStateActRelative(timeUs_t currentTimeUs){
         }
     }
 }
+
 
 
 void evaluateGraphWithErrorDerivateError(timeUs_t currentTimeUs){
@@ -475,7 +478,7 @@ void evaluateGraphWithErrorDerivateError(timeUs_t currentTimeUs){
     */
 
     //Evaluate the neural network graph and convert to range [-1,1]->[0,1]
-    run_graph(graphInput, GRAPH_INPUT_SIZE, graphOutput, GRAPH_OUTPUT_SIZE);
+    infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, GRAPH_OUTPUT_SIZE);
     for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
         controlOutput[i] = transformScale(constrainf(graphOutput[i], -1.0f, 1.0f), -1.0f, 1.0f, 0, 1); 
     }
@@ -486,10 +489,36 @@ void evaluateGraphWithErrorDerivateError(timeUs_t currentTimeUs){
         }
     }
 }
+
+serialPort_t *uart4Serial = NULL;
+
 void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
     if(initFlag) {
         neuroInit(pidProfile);
         initFlag = false;
+        uart4Serial = openSerialPort(SERIAL_PORT_UART4, FUNCTION_BLACKBOX, NULL, NULL, 115200, MODE_RXTX, 0);
+        // setPrintfSerialPort(uart4Serial);
+        // *(NULL);
+    }
+    if (!initFlag) {
+        uint8_t bytesWaiting;
+        bool wentIn = false;
+        while ((bytesWaiting = serialRxBytesWaiting(uart4Serial))) {
+            uint8_t b = serialRead(uart4Serial);
+            serialWrite(uart4Serial, b);
+            
+            wentIn = true;
+        };
+        if(wentIn) {
+            // serialWrite(uart4Serial, '\n');
+            // serialWrite(uart4Serial, '\n');
+        }
+
+        // uint8_t byte_read = serialRead(uart4Serial);
+        // for(int i =0; i < 10; i++) {
+        //     serialRead(uart4Serial);
+        //     serialWrite(uart4Serial, 'a'+i);
+        // }
     }
     // evaluateGraphWithErroeDeltaTargetDeltaStateAct(currentTimeUs);
     evaluateGraphWithErrorStateDeltaStateAct(currentTimeUs);
@@ -497,6 +526,7 @@ void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
     // evaluateGraphWithErrorDerivateError(currentTimeUs);
 	mixGraphOutput(currentTimeUs, controlOutput);
 }
+
 float transformScale(float value, float oldLow, float oldHigh, float newLow, float newHigh){
 	return ((value - oldLow) / (oldHigh - oldLow)) * (newHigh - newLow) + newLow;
 }
