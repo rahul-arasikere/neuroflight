@@ -1,18 +1,28 @@
+import time
 import serial
-ser = serial.Serial('/dev/ttyUSB5', 115200)  # open first serial port
+ser = serial.Serial('/dev/ttyUSB4', 115200)  # open first serial port
 #print ser.portstr       # check which port was really used
 
 def listToString(s): 
     # initialize an empty string
     str1 = "" 
     # traverse in the string  
-    for ele in s: 
-        str1 += hex(ele)+","  
-    # return string  
-    return str1 
+    for ele in s:
+        str1 += chr(ele)
+    split_strings = []
+    n  = 8
+    for index in range(0, len(str1), n):
+        split_strings.append(str1[index : index + n])
 
-model_tflite = [
-  0x1c, 0x00, 0x00, 0x00, 0x54, 0x46, 0x4c, 0x33, 0x14, 0x00, 0x20, 0x00,
+    #print(split_strings)    
+    # return string  
+    return split_strings 
+
+#model_tflite = "abcdefghigklmnopqrstuvwxyz"
+
+
+
+model_tflite = [0x00, 0x54, 0x46, 0x4c, 0x33, 0x14, 0x00, 0x20, 0x00,
   0x04, 0x00, 0x08, 0x00, 0x0c, 0x00, 0x10, 0x00, 0x14, 0x00, 0x00, 0x00,
   0x18, 0x00, 0x1c, 0x00, 0x14, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00,
   0x18, 0x00, 0x00, 0x00, 0x1c, 0x00, 0x00, 0x00, 0x90, 0x00, 0x00, 0x00,
@@ -100,8 +110,23 @@ model_tflite = [
 
 model_tflite_string = listToString(model_tflite)
 
+leng = len(model_tflite)
+MSB = chr((leng & (0xff << 8)) >> 8)
+LSB = chr((leng & 0xff))
+# print(leng)
+# print(ord(MSB))
+# print(ord(LSB))
+
+ser.write(LSB)
+ser.write(MSB)
+ser.flush()
+time.sleep(0.1)
+
+
 
 #print(model_tflite_string)
-ser.write(model_tflite_string)      # write a string
-ser.flush()
-ser.close()             # close port
+for s in model_tflite_string:
+    ser.write(s)
+    ser.flush()
+    time.sleep(0.1)
+# ser.close()             # close port
