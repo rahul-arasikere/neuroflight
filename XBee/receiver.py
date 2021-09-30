@@ -9,7 +9,8 @@ count=1
 while True:
     ser.flush()
     line = ser.read()
-    sys.stdout.write(line)
-    sys.stdout.flush()
+    print(ord(line))
+    #sys.stdout.write(line)
+    #sys.stdout.flush()
     #print(line, end='')
 ser.close()
