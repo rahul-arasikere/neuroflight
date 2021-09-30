@@ -15,11 +15,11 @@
  **/
 
 
-void infer(float *input, int input_size, float *output, int output_size) {
+void infer(float *input, int input_size, float *output, const uint8_t* model_data, int output_size) {
 	//fc::NeuroControl controller;
 	static bool flip = true;
 	flip = !flip;
-	tflite::Model* model = ::tflite::GetModel(flip ? model_tflite : model2_tflite);
+	tflite::Model* model = ::tflite::GetModel(model_data);
 	tflite::MicroErrorReporter micro_error_reporter;
 	tflite::MicroMutableOpResolver<3> resolver;
 	resolver.AddFullyConnected();

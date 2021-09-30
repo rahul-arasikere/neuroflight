@@ -5,7 +5,7 @@
 #endif
 
 
-EXTERNC void infer(float *input, int input_size, float *output, int output_size);
+EXTERNC void infer(float *input, int input_size, float *output, const uint8_t* model_data, int output_size);
 
 
 #undef EXTERNC
