@@ -21,6 +21,7 @@
 #include "common/filter.h"
 #include "io/serial.h"
 #include "common/printf.h"
+#include "tflite/model_data.h"
 
 
 /* An array containing inputs for the neural network 
@@ -128,164 +129,6 @@ void neuroInit(const pidProfile_t *pidProfile)
 
 }
 
-
-void evaluateGraphWithErroeDeltaTargetDeltaStateAct(timeUs_t currentTimeUs){
-    static timeUs_t previousTime;
-    static float previousSetpoint[3];
-    static float previousGyroFiltered[3];
-
-    const float deltaT = ((float)(currentTimeUs - previousTime))/1000000.0f;
-    if (debugMode == DEBUG_NN_DT) {
-        debug[0] = (int16_t)(currentTimeUs - previousTime);
-        debug[1] = 0;
-        debug[2] = 0;
-        debug[3] = 0;
-    }
-    previousTime = currentTimeUs;
-
-    //Prepare the neural network inputs
-    // Set the current error and deriviate
-    for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
-
-        float currentSetpoint = getSetpointRate(axis);
-        float changeInSetpoint = currentSetpoint - previousSetpoint[axis];
-        float gyroRate = gyro.gyroADCf[axis];
-        float gyroRateFiltered = gyroRate;
-        // gyroRateFiltered = dtermLpfApplyFn(dtermFilterLpf[axis], gyroRate);
-        const float gyroDelta = gyroRateFiltered - previousGyroFiltered[axis]; 
-        float errorRate = currentSetpoint - gyroRate; 
-        graphInput[axis] = errorRate;
-
-        if (debugMode == DEBUG_NN_SPDELTA) {
-            debug[axis] = (int16_t)(1000*changeInSetpoint);
-        }
-        if (debugMode == DEBUG_NN_SP) {
-            debug[axis] = (int16_t)(1000*currentSetpoint);
-        }
-
-        if (debugMode == DEBUG_NN_GYDELTA) {
-            debug[axis] = (int16_t)(1000*gyroDelta);
-        }
-
-        if (debugMode == DEBUG_NN_GYRATE) {
-            debug[axis] = (int16_t)(10*gyroRate);
-        }
-
-        if (debugMode == DEBUG_NN_ERR_RATE) {
-            debug[axis] = (int16_t)(10*errorRate);
-        }
-
-        //TODO We need to include delta time because the loop is not fixed
-        // graphInput[axis + 3] = changeInSetpoint;
-        graphInput[axis + 3] = gyroRate;
-
-        // previousSetpoint[axis] = currentSetpoint;
-        // previousGyroFiltered[axis] = gyroRateFiltered;
-    }
-
-    for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
-        graphInput[i+6] = previousOutput[i];
-    }
-    
-    // if (debugMode == DEBUG_NN_OUT) {
-    //     for (int i = 0; i<GRAPH_INPUT_SIZE; i++){
-    //         debug[i] = (int16_t)(graphInput[i] * 1000.0);
-    //     }
-    // }
-
-    if (debugMode == DEBUG_NN_ACT_IN) {
-        for (int i = 0; i<GRAPH_OUTPUT_SIZE; i++){
-            debug[i] = (int16_t)(previousOutput[i] * 1000.0);
-        }
-    }
-
-    //Evaluate the neural network graph and convert to range [-1,1]->[0,1]
-    infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, GRAPH_OUTPUT_SIZE);
-
-    for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
-        float filtered = previousOutput[i]*0.9 + graphOutput[i]*0.1;
-        controlOutput[i] = transformScale(constrainf(filtered, -1.0f, 1.0f), -1.0f, 1.0f, 0, 1);
-        previousOutput[i] = filtered;
-    }
-
-    if (debugMode == DEBUG_NN_OUT) {
-        for (int i = 0; i<GRAPH_OUTPUT_SIZE; i++){
-            debug[i] = (int16_t)(previousOutput[i] * 1000.0);
-        }
-    }
-}
-
-
-void evaluateGraphWithErrorStateDeltaStateActRelative(timeUs_t currentTimeUs){
-    static timeUs_t previousTime;
-    static float previousGyroFiltered[3];
-
-    const float deltaT = ((float)(currentTimeUs - previousTime))/1000000.0f;
-    previousTime = currentTimeUs;
-
-    //Prepare the neural network inputs
-    // Set the current error and deriviate
-    for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
-
-        float currentSetpoint = getSetpointRate(axis);
-        float gyroRate = gyro.gyroADCf[axis];
-        float gyroRateFiltered = dtermNotchFilterApplyFn(dtermFilterNotch[axis], gyro.gyroADCf[axis]);
-        gyroRateFiltered = dtermLpfApplyFn(dtermFilterLpf[axis], gyroRate);
-        const float gyroDelta = gyroRateFiltered - previousGyroFiltered[axis]; 
-        float errorRate = currentSetpoint - gyroRate; 
-        graphInput[axis] = errorRate;
-
-        if (debugMode == DEBUG_NN_GYDELTA) {
-            debug[axis] = (int16_t)(1000*gyroDelta);
-        }
-
-        if (debugMode == DEBUG_NN_GYRATE) {
-            debug[axis] = (int16_t)(10*gyroRate);
-        }
-
-        if (debugMode == DEBUG_NN_ERR_RATE) {
-            debug[axis] = (int16_t)(10*errorRate);
-        }
-
-        //TODO We need to include delta time because the loop is not fixed
-        graphInput[axis + 3] = gyroDelta;
-
-        previousGyroFiltered[axis] = gyroRateFiltered;
-    }
-
-    for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
-        graphInput[i+6] = previousOutput[i];
-    }
-    
-    // if (debugMode == DEBUG_NN_OUT) {
-    //     for (int i = 0; i<GRAPH_INPUT_SIZE; i++){
-    //         debug[i] = (int16_t)(graphInput[i] * 1000.0);
-    //     }
-    // }
-
-    if (debugMode == DEBUG_NN_ACT_IN) {
-        for (int i = 0; i<GRAPH_OUTPUT_SIZE; i++){
-            debug[i] = (int16_t)(previousOutput[i] * 1000.0);
-        }
-    }
-
-    //Evaluate the neural network graph and convert to range [-1,1]->[0,1]
-    infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, GRAPH_OUTPUT_SIZE);
-
-    for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
-        float new_output = previousOutput[i] + graphOutput[i]*0.2;
-        new_output = constrainf(new_output, -1.0f, 1.0f);
-        controlOutput[i] = transformScale(new_output, -1.0f, 1.0f, 0.0f, 1.0f);
-        previousOutput[i] = new_output;
-    }
-
-    if (debugMode == DEBUG_NN_OUT) {
-        for (int i = 0; i<GRAPH_OUTPUT_SIZE; i++){
-            debug[i] = (int16_t)(previousOutput[i] * 1000.0);
-        }
-    }
-}
-
 void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
     static timeUs_t previousTime;
     static float previousState[3];
@@ -343,7 +186,7 @@ void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
     }
 
     //Evaluate the neural network graph and convert to range [-1,1]->[0,1]
-    infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, GRAPH_OUTPUT_SIZE);
+    infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, model_tflite, GRAPH_OUTPUT_SIZE);
 
     for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
         float new_output = graphOutput[i];
@@ -359,171 +202,93 @@ void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
     }
 }
 
-void evaluateGraphWithErrorTargetDeltaStateActRelative(timeUs_t currentTimeUs){
-    static timeUs_t previousTime;
-    static float previousGyroFiltered[3];
-
-    const float deltaT = ((float)(currentTimeUs - previousTime))/1000000.0f;
-
-    if (debugMode == DEBUG_NN_DT) {
-        debug[0] = (int16_t)(currentTimeUs - previousTime);
-        debug[1] = 0;
-        debug[2] = 0;
-        debug[3] = 0;
-    }
-
-    previousTime = currentTimeUs;
-
-    //Prepare the neural network inputs
-    // Set the current error and deriviate
-    for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
-
-        float currentSetpoint = getSetpointRate(axis);
-        float gyroRate = gyro.gyroADCf[axis];
-        float gyroRateFiltered = dtermNotchFilterApplyFn(dtermFilterNotch[axis], gyro.gyroADCf[axis]);
-        gyroRateFiltered = dtermLpfApplyFn(dtermFilterLpf[axis], gyroRate);
-        const float gyroDelta = gyroRateFiltered - previousGyroFiltered[axis]; 
-        float errorRate = currentSetpoint - gyroRate; 
-        graphInput[axis] = errorRate;
-
-        if (debugMode == DEBUG_NN_GYDELTA) {
-            debug[axis] = (int16_t)(1000*gyroDelta);
-        }
-
-        if (debugMode == DEBUG_NN_GYRATE) {
-            debug[axis] = (int16_t)(10*gyroRate);
-        }
-
-        if (debugMode == DEBUG_NN_ERR_RATE) {
-            debug[axis] = (int16_t)(10*errorRate);
-        }
-
-        graphInput[axis + 3] = currentSetpoint;
-        //TODO We need to include delta time because the loop is not fixed
-        graphInput[axis + 6] = gyroDelta;
-
-        previousGyroFiltered[axis] = gyroRateFiltered;
-    }
-
-    for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
-        graphInput[i+9] = previousOutput[i];
-    }
-    
-    // if (debugMode == DEBUG_NN_OUT) {
-    //     for (int i = 0; i<GRAPH_INPUT_SIZE; i++){
-    //         debug[i] = (int16_t)(graphInput[i] * 1000.0);
-    //     }
-    // }
-
-    if (debugMode == DEBUG_NN_ACT_IN) {
-        for (int i = 0; i<GRAPH_OUTPUT_SIZE; i++){
-            debug[i] = (int16_t)(previousOutput[i] * 1000.0);
-        }
-    }
-
-    //Evaluate the neural network graph and convert to range [-1,1]->[0,1]
-    // infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, GRAPH_OUTPUT_SIZE);
-
-    for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
-        float new_output = previousOutput[i] + graphOutput[i]*0.2;
-        new_output = constrainf(new_output, -1.0f, 1.0f);
-        // controlOutput[i] = transformScale(new_output, -1.0f, 1.0f, 0.0f, 1.0f);
-        controlOutput[i] = 0;
-        previousOutput[i] = new_output;
-    }
-
-    if (debugMode == DEBUG_NN_OUT) {
-        for (int i = 0; i<GRAPH_OUTPUT_SIZE; i++){
-            debug[i] = (int16_t)(previousOutput[i] * 1000.0);
-        }
-    }
-}
-
-
-
-void evaluateGraphWithErrorDerivateError(timeUs_t currentTimeUs){
-    static timeUs_t previousTime;
-    static float previousRateError[3];
-
-    const float deltaT = ((float)(currentTimeUs - previousTime))/1000000.0f;
-    if (debugMode == DEBUG_NN_DT) {
-        debug[0] = (int16_t)(currentTimeUs - previousTime);
-        debug[1] = 0;
-        debug[2] = 0;
-        debug[3] = 0;
-    }
-    previousTime = currentTimeUs;
-
-    //Prepare the neural network inputs
-    // Set the current error and deriviate
-    for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
-        float currentSetpoint = getSetpointRate(axis);
-        float gyroRate = gyro.gyroADCf[axis];
-        // gyroRate = dtermLpfApplyFn(dtermFilterLpf[axis], gyroRate);
-		float errorRate = currentSetpoint - gyroRate; 
-		graphInput[axis] = errorRate;
-
-        //TODO We need to include delta time because the loop is not fixed
-        float delta = (errorRate - previousRateError[axis]);
-        graphInput[axis + 3] = delta;
-
-        previousRateError[axis] = errorRate;
-    }
-    /*  
-    if (debugMode == DEBUG_NN_OUT) {
-        for (int i = 0; i<GRAPH_INPUT_SIZE; i++){
-            debug[i] = (int16_t)(graphInput[i] * 1000.0);
-        }
-    }
-    */
-
-    //Evaluate the neural network graph and convert to range [-1,1]->[0,1]
-    infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, GRAPH_OUTPUT_SIZE);
-    for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
-        controlOutput[i] = transformScale(constrainf(graphOutput[i], -1.0f, 1.0f), -1.0f, 1.0f, 0, 1); 
-    }
-
-    if (debugMode == DEBUG_NN_OUT) {
-        for (int i = 0; i<GRAPH_OUTPUT_SIZE; i++){
-            debug[i] = (int16_t)(controlOutput[i] * 1000.0);
-        }
-    }
-}
-
 serialPort_t *uart4Serial = NULL;
+
+#define MAX_BUFFER_SIZE 1024
+
+#define buffer_size_t uint16_t
+#define SIZE_BYTES sizeof(buffer_size_t)/sizeof(uint8_t)
+#define crc_t uint16_t
+#define CRC_BYTES sizeof(crc_t)/sizeof(uint8_t)
+#define META_BYTES (SIZE_BYTES + CRC_BYTES)
+
+uint8_t buffer[META_BYTES + MAX_BUFFER_SIZE];
+buffer_size_t buffer_size = 0;
+
+buffer_size_t expected_block_size() {
+    if(SIZE_BYTES > buffer_size)
+        return 0;
+    buffer_size_t num_bytes = 0;
+    for(int i=0; i < SIZE_BYTES; i++)
+        num_bytes += ((buffer_size_t)buffer[i]) << (i*8);
+    return num_bytes;
+}
+
+crc_t expected_crc() {
+    buffer_size_t crc = 0;
+    for(int i=SIZE_BYTES; i < SIZE_BYTES+CRC_BYTES; i++)
+        crc += ((buffer_size_t)buffer[i]) << i*8;
+    return crc;
+}
+
+buffer_size_t block_size() {
+    return (buffer_size > META_BYTES) ? (buffer_size - META_BYTES) : 0;
+}
+
+void add_to_buffer(uint8_t add_me) {
+    buffer[buffer_size] = add_me;
+    buffer_size++;
+}
+
+uint8_t block_at(buffer_size_t i) {
+    return buffer[i+META_BYTES];
+}
+
+void print_block() {
+    for(int i = 0; i < block_size(); i++) {
+        serialWrite(uart4Serial, block_at(i));
+    }
+    serialWrite(uart4Serial, '\n');
+}
+
+void update_nn() {
+    for(int i = 0; i < block_size(); i++) {
+        model_tflite[i] = block_at(i);
+    }
+}
+
+crc_t block_crc() {
+    uint8_t tmp;
+    crc_t crcAccum = 0xffff;
+    for (int i = 0; i < block_size(); i++)
+        tmp = block_at(i) ^ (uint8_t)(crcAccum & 0xff);
+        tmp ^= (tmp << 4);
+        crcAccum = (crcAccum >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4);
+    return crcAccum;
+}
 
 void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
     if(initFlag) {
         neuroInit(pidProfile);
         initFlag = false;
         uart4Serial = openSerialPort(SERIAL_PORT_UART4, FUNCTION_BLACKBOX, NULL, NULL, 115200, MODE_RXTX, 0);
-        // setPrintfSerialPort(uart4Serial);
-        // *(NULL);
     }
     if (!initFlag) {
         uint8_t bytesWaiting;
-        bool wentIn = false;
         while ((bytesWaiting = serialRxBytesWaiting(uart4Serial))) {
             uint8_t b = serialRead(uart4Serial);
-            serialWrite(uart4Serial, b);
-            
-            wentIn = true;
+            add_to_buffer(b);
+            if((buffer_size >= META_BYTES) && (block_size() == expected_block_size())) {
+                // print_block();
+                update_nn();
+                serialWrite(uart4Serial, '0'+(block_crc() == expected_crc()));
+                serialWrite(uart4Serial, '\n');
+                buffer_size = 0;
+            }
         };
-        if(wentIn) {
-            // serialWrite(uart4Serial, '\n');
-            // serialWrite(uart4Serial, '\n');
-        }
 
-        // uint8_t byte_read = serialRead(uart4Serial);
-        // for(int i =0; i < 10; i++) {
-        //     serialRead(uart4Serial);
-        //     serialWrite(uart4Serial, 'a'+i);
-        // }
     }
-    // evaluateGraphWithErroeDeltaTargetDeltaStateAct(currentTimeUs);
     evaluateGraphWithErrorStateDeltaStateAct(currentTimeUs);
-    // evaluateGraphWithErrorTargetDeltaStateActRelative(currentTimeUs);
-    // evaluateGraphWithErrorDerivateError(currentTimeUs);
 	mixGraphOutput(currentTimeUs, controlOutput);
 }
 
