@@ -20,9 +20,9 @@
 #include "graph_dim.h"
 #include "common/filter.h"
 #include "io/serial.h"
-#include "common/printf.h"
+// #include "common/printf.h"
 #include "tflite/model_data.h"
-
+// #include "tflite/smooth_frozen2.h"
 
 /* An array containing inputs for the neural network 
  * where the first element is the oldest
@@ -129,10 +129,11 @@ void neuroInit(const pidProfile_t *pidProfile)
 
 }
 
+serialPort_t *uart4Serial = NULL;
+
 void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
     static timeUs_t previousTime;
     static float previousState[3];
-
     const float deltaT = ((float)(currentTimeUs - previousTime))/1000000.0f;
     previousTime = currentTimeUs;
 
@@ -186,7 +187,7 @@ void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
     }
 
     //Evaluate the neural network graph and convert to range [-1,1]->[0,1]
-    infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, model_tflite, GRAPH_OUTPUT_SIZE);
+    infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, model_tflite, GRAPH_OUTPUT_SIZE, uart4Serial);
 
     for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
         float new_output = graphOutput[i];
@@ -202,9 +203,7 @@ void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
     }
 }
 
-serialPort_t *uart4Serial = NULL;
-
-#define MAX_BUFFER_SIZE 1024
+#define MAX_BUFFER_SIZE 1000
 
 #define buffer_size_t uint16_t
 #define SIZE_BYTES sizeof(buffer_size_t)/sizeof(uint8_t)
@@ -252,19 +251,28 @@ void print_block() {
 }
 
 void update_nn() {
-    for(int i = 0; i < block_size(); i++) {
-        model_tflite[i] = block_at(i);
-    }
+    // for(int i = 0; i < block_size(); i++) {
+    //     model_tflite[i] = block_at(i);
+    // }
 }
 
 crc_t block_crc() {
     uint8_t tmp;
     crc_t crcAccum = 0xffff;
-    for (int i = 0; i < block_size(); i++)
+    for (int i = 0; i < block_size(); i++) {
         tmp = block_at(i) ^ (uint8_t)(crcAccum & 0xff);
         tmp ^= (tmp << 4);
         crcAccum = (crcAccum >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4);
+    }
     return crcAccum;
+}
+
+
+void write_float(float x) {
+    unsigned char bytes_array[sizeof(float)];
+    *((float *)bytes_array) = x;
+    for(unsigned int i = 0; i < sizeof(bytes_array); i++)
+        serialWrite(uart4Serial, bytes_array[i]);
 }
 
 void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
@@ -272,8 +280,16 @@ void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
         neuroInit(pidProfile);
         initFlag = false;
         uart4Serial = openSerialPort(SERIAL_PORT_UART4, FUNCTION_BLACKBOX, NULL, NULL, 115200, MODE_RXTX, 0);
-    }
-    if (!initFlag) {
+        // uart4Serial = openSerialPort(SERIAL_PORT_UART4, FUNCTION_BLACKBOX, NULL, NULL, 921600, MODE_RXTX, 0);
+    } else {
+        // serialWrite(uart4Serial, 166);
+        // for(unsigned int i=1; i<=2; i++) {
+        //     write_float(0.1*i);
+        // }
+
+
+        // serialWrite(uart4Serial, 167);
+
         uint8_t bytesWaiting;
         while ((bytesWaiting = serialRxBytesWaiting(uart4Serial))) {
             uint8_t b = serialRead(uart4Serial);
@@ -287,9 +303,9 @@ void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
             }
         };
 
+        evaluateGraphWithErrorStateDeltaStateAct(currentTimeUs);
+        mixGraphOutput(currentTimeUs, controlOutput);
     }
-    evaluateGraphWithErrorStateDeltaStateAct(currentTimeUs);
-	mixGraphOutput(currentTimeUs, controlOutput);
 }
 
 float transformScale(float value, float oldLow, float oldHigh, float newLow, float newHigh){
