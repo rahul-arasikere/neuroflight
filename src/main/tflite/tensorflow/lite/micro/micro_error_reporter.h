@@ -19,7 +19,6 @@ limitations under the License.
 
 #include "tflite/tensorflow/lite/core/api/error_reporter.h"
 #include "tflite/tensorflow/lite/micro/compatibility.h"
-#include "io/serial.h"
 
 #if !defined(TF_LITE_STRIP_ERROR_STRINGS)
 // This function can be used independent of the MicroErrorReporter to get
@@ -40,7 +39,6 @@ class MicroErrorReporter : public ErrorReporter {
  public:
   ~MicroErrorReporter() override {}
   int Report(const char* format, va_list args) override;
-  void SetSerial(const serialPort_t *use_serialPort);
 
  public:
   TF_LITE_REMOVE_VIRTUAL_DELETE

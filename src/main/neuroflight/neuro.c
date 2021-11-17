@@ -12,17 +12,23 @@
 #include "fc/fc_rc.h"
 #include "fc/rc_controls.h"
 #include "fc/runtime_config.h"
-#include "graph/neuro.h"
+#include "neuroflight/neuro.h"
 #include "flight/imu.h"
 #include "flight/mixer.h"
 #include "sensors/gyro.h"
-#include "graph/graph_interface.h"
+#include "neuroflight/graph_interface.h"
 #include "graph_dim.h"
 #include "common/filter.h"
 #include "io/serial.h"
+#include "io/uart4Serial.h"
+#include "trajectory_buffer.h"
 // #include "common/printf.h"
-#include "tflite/model_data.h"
+// #include "tflite/model_data.h"
 // #include "tflite/smooth_frozen2.h"
+// #include "tflite/model_test_data.h"
+// #include "tflite/large_test.h"
+// #include "tflite/small_test.h"
+// #include "tflite/small_test_no_mul_add.h"
 
 /* An array containing inputs for the neural network 
  * where the first element is the oldest
@@ -42,6 +48,8 @@ static FAST_RAM filterApplyFnPtr dtermLpfApplyFn;
 static FAST_RAM void *dtermFilterLpf[3];
 
 static FAST_RAM float dT;
+
+
 
 
 typedef union dtermFilterLpf_u {
@@ -129,8 +137,6 @@ void neuroInit(const pidProfile_t *pidProfile)
 
 }
 
-serialPort_t *uart4Serial = NULL;
-
 void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
     static timeUs_t previousTime;
     static float previousState[3];
@@ -186,8 +192,38 @@ void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
         }
     }
 
+    rpy_t error;
+    error.roll = 0.1;
+    error.pitch = 0.2;
+    error.yaw = 0.3;
+
+    rpy_t ang_vel;
+    ang_vel.roll = gyro.gyroADCf[0];
+    ang_vel.pitch = gyro.gyroADCf[1];
+    ang_vel.yaw = gyro.gyroADCf[2];
+
+    rpy_t ang_acc;
+    ang_acc.roll = 0.4;
+    ang_acc.pitch = 0.5;
+    ang_acc.yaw = 0.6;
+    action_t prev_action;
+    prev_action.top_left = 0;
+    prev_action.top_right = 0;
+    prev_action.bottom_left = 0;
+    prev_action.bottom_right = 0;
+
+    observation_t obs;
+    obs.error = error;
+    obs.ang_vel = ang_vel;
+    obs.ang_acc = ang_acc;
+    obs.prev_action = prev_action;
+
+    // traj_transmission_handler(obs);
+    
+    serialWrite(uart4Serial, 'a');
+
     //Evaluate the neural network graph and convert to range [-1,1]->[0,1]
-    infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, model_tflite, GRAPH_OUTPUT_SIZE, uart4Serial);
+    // infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, model_tflite, GRAPH_OUTPUT_SIZE);
 
     for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
         float new_output = graphOutput[i];
@@ -268,27 +304,25 @@ crc_t block_crc() {
 }
 
 
-void write_float(float x) {
-    unsigned char bytes_array[sizeof(float)];
-    *((float *)bytes_array) = x;
-    for(unsigned int i = 0; i < sizeof(bytes_array); i++)
-        serialWrite(uart4Serial, bytes_array[i]);
-}
-
 void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
     if(initFlag) {
         neuroInit(pidProfile);
         initFlag = false;
-        uart4Serial = openSerialPort(SERIAL_PORT_UART4, FUNCTION_BLACKBOX, NULL, NULL, 115200, MODE_RXTX, 0);
+        initUART4();
         // uart4Serial = openSerialPort(SERIAL_PORT_UART4, FUNCTION_BLACKBOX, NULL, NULL, 921600, MODE_RXTX, 0);
     } else {
-        // serialWrite(uart4Serial, 166);
-        // for(unsigned int i=1; i<=2; i++) {
-        //     write_float(0.1*i);
+        // (state)gyro.gyroADCf
+
+
+        // static int loop_count = 0;
+        // loop_count += 1;
+        // if(loop_count % 100 == 0) {
+        //     serialWrite(uart4Serial, 165);
+        //     for(unsigned int i=1; i<=100; i++) {
+        //         write_float(0.1*i);
+        //     }
+        //     serialWrite(uart4Serial, 167);
         // }
-
-
-        // serialWrite(uart4Serial, 167);
 
         uint8_t bytesWaiting;
         while ((bytesWaiting = serialRxBytesWaiting(uart4Serial))) {

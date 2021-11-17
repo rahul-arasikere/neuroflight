@@ -54,10 +54,7 @@ void MicroPrintf(const char* format, ...) {
 #endif
 
 namespace tflite {
-void MicroErrorReporter::SetSerial(const serialPort_t *use_serialPort) {
-  SetSerialPort(use_serialPort);
-}
-
+  
 ErrorReporter* GetMicroErrorReporter() {
   if (error_reporter_ == nullptr) {
     error_reporter_ = new (micro_error_reporter_buffer) MicroErrorReporter();

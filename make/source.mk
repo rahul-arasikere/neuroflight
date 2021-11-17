@@ -1,11 +1,3 @@
-GRAPH_SRC = \
-            graph/graph_interface.cc \
-
-AOT_SRC = \
-			$(TENSORFLOW_DIR)/tensorflow/compiler/tf2xla/xla_compiled_cpu_function.cc \
-			$(TENSORFLOW_DIR)/tensorflow/compiler/aot/runtime.cc \
-			$(TENSORFLOW_DIR)/tensorflow/compiler/xla/executable_run_options.cc \
-			
 COMMON_SRC = \
             build/build_config.c \
             build/debug.c \
@@ -65,6 +57,7 @@ COMMON_SRC = \
             interface/msp.c \
             interface/msp_box.c \
             io/beeper.c \
+            io/uart4Serial.c \
             io/piniobox.c \
             io/serial.c \
             io/statusindicator.c \

@@ -39,19 +39,15 @@ limitations under the License.
 #ifndef TF_LITE_STRIP_ERROR_STRINGS
 // #include <cstdio>
 #include "io/serial.h"
-static serialPort_t *serialPort;
+#include "io/uart4Serial.h"
 #endif
-
-extern "C" void SetSerialPort(const serialPort_t *use_serialPort) {
-	serialPort = use_serialPort;
-}
 
 extern "C" void DebugLog(const char* s) {
 #ifndef TF_LITE_STRIP_ERROR_STRINGS
   // Reusing TF_LITE_STRIP_ERROR_STRINGS to disable DebugLog completely to get
   // maximum reduction in binary size. This is because we have DebugLog calls
   // via TF_LITE_CHECK that are not stubbed out by TF_LITE_REPORT_ERROR.
-	serialPrint(serialPort, s);
+	serialPrint(uart4Serial, s);
 
 #endif
 }
