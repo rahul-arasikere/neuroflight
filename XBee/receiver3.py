@@ -6,7 +6,7 @@ import time
 
 first_sync_size = 1
 second_sync_size = 1
-expected_num = 10
+expected_num = 100
 ser = serial.Serial('/dev/ttyUSB4', 115200)  # open first serial port
 #ser = serial.Serial('/dev/ttyUSB5', 115200)  # open first serial port
 
@@ -28,7 +28,7 @@ while True:
     if check:
         while True:
             sync_byte = ser.read(1)
-            if ord(sync_byte)==166:
+            if ord(sync_byte)==165:
                 check = keep_checking
                 break
     else:
