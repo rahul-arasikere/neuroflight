@@ -85,7 +85,7 @@
 #include "flight/pid.h"
 #include "flight/servos.h"
 
-#include "graph/neuro.h"
+#include "neuroflight/neuro.h"
 
 
 // June 2013     V2.2-dev
