@@ -47,7 +47,7 @@ extern "C" void DebugLog(const char* s) {
   // Reusing TF_LITE_STRIP_ERROR_STRINGS to disable DebugLog completely to get
   // maximum reduction in binary size. This is because we have DebugLog calls
   // via TF_LITE_CHECK that are not stubbed out by TF_LITE_REPORT_ERROR.
-	serialPrint(uart4Serial, s);
+	serialPrint(getUART4(), s);
 
 #endif
 }

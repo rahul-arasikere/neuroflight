@@ -1,9 +1,6 @@
 #ifndef TRAJECTORY_BUFFER_H
 #define TRAJECTORY_BUFFER_H
 
-#include <stdint.h>
-#include "io/serial.h"
-
 typedef struct rpy_t {
     float roll;
     float pitch;

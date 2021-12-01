@@ -218,9 +218,9 @@ void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
     obs.ang_acc = ang_acc;
     obs.prev_action = prev_action;
 
-    // traj_transmission_handler(obs);
+    traj_transmission_handler(obs);
+    // serialWrite(getUART4(), 'a');
     
-    serialWrite(uart4Serial, 'a');
 
     //Evaluate the neural network graph and convert to range [-1,1]->[0,1]
     // infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, model_tflite, GRAPH_OUTPUT_SIZE);
@@ -281,9 +281,9 @@ uint8_t block_at(buffer_size_t i) {
 
 void print_block() {
     for(int i = 0; i < block_size(); i++) {
-        serialWrite(uart4Serial, block_at(i));
+        serialWrite(getUART4(), block_at(i));
     }
-    serialWrite(uart4Serial, '\n');
+    serialWrite(getUART4(), '\n');
 }
 
 void update_nn() {
@@ -308,8 +308,6 @@ void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
     if(initFlag) {
         neuroInit(pidProfile);
         initFlag = false;
-        initUART4();
-        // uart4Serial = openSerialPort(SERIAL_PORT_UART4, FUNCTION_BLACKBOX, NULL, NULL, 921600, MODE_RXTX, 0);
     } else {
         // (state)gyro.gyroADCf
 
@@ -317,22 +315,22 @@ void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
         // static int loop_count = 0;
         // loop_count += 1;
         // if(loop_count % 100 == 0) {
-        //     serialWrite(uart4Serial, 165);
+        //     serialWrite(getUART4(), 165);
         //     for(unsigned int i=1; i<=100; i++) {
         //         write_float(0.1*i);
         //     }
-        //     serialWrite(uart4Serial, 167);
+        //     serialWrite(getUART4(), 167);
         // }
 
         uint8_t bytesWaiting;
-        while ((bytesWaiting = serialRxBytesWaiting(uart4Serial))) {
-            uint8_t b = serialRead(uart4Serial);
+        while ((bytesWaiting = serialRxBytesWaiting(getUART4()))) {
+            uint8_t b = serialRead(getUART4());
             add_to_buffer(b);
             if((buffer_size >= META_BYTES) && (block_size() == expected_block_size())) {
                 // print_block();
                 update_nn();
-                serialWrite(uart4Serial, '0'+(block_crc() == expected_crc()));
-                serialWrite(uart4Serial, '\n');
+                serialWrite(getUART4(), '0'+(block_crc() == expected_crc()));
+                serialWrite(getUART4(), '\n');
                 buffer_size = 0;
             }
         };

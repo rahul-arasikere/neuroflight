@@ -10,7 +10,7 @@ void infer(float *input, int input_size, float *output, const uint8_t* model_dat
 	tflite::MicroErrorReporter micro_error_reporter;
 	tflite::Model* model = ::tflite::GetModel(model_data);
 	if (model->version() != TFLITE_SCHEMA_VERSION) {
-		serialPrint(uart4Serial, "Model version does not match Schema");
+		serialPrint(getUART4(), "Model version does not match Schema");
 		while(1);
 	}
 	tflite::MicroMutableOpResolver<11> resolver;
@@ -35,7 +35,7 @@ void infer(float *input, int input_size, float *output, const uint8_t* model_dat
 	
 	TfLiteStatus allocate_status = interpreter.AllocateTensors();
 	if (allocate_status != kTfLiteOk) {
-		serialPrint(uart4Serial, "AllocateTensors() failed");
+		serialPrint(getUART4(), "AllocateTensors() failed");
 		while(1);
 	}
 	TfLiteTensor* input_ptr = interpreter.input(0);
@@ -43,7 +43,7 @@ void infer(float *input, int input_size, float *output, const uint8_t* model_dat
 	std::copy(input + 0, input + input_size, input_ptr->data.f);
 	TfLiteStatus invoke_status = interpreter.Invoke();
 	if (invoke_status != kTfLiteOk) {
-		serialPrint(uart4Serial, "Invoke failed on input");
+		serialPrint(getUART4(), "Invoke failed on input");
 		while(1);
 	}
 	// //The output of the neural network is in rage [-1:1] for each motor output

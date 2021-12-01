@@ -1,6 +1,7 @@
 #include "trajectory_buffer.h"
+#include <stdint.h>
+#include "io/serial.h"
 #include "io/uart4Serial.h"
-
 
 #define TRAJ_SIZE 100
 
@@ -33,16 +34,16 @@ void write_float(float x) {
     unsigned char bytes_array[sizeof(float)];
     *((float *)bytes_array) = x;
     for(unsigned int i = 0; i < sizeof(bytes_array); i++)
-        serialWrite(uart4Serial, bytes_array[i]);
+        serialWrite(getUART4(), bytes_array[i]);
 }
 
 void write_observation(observation_t obs) {
-    serialWrite(uart4Serial, 228);
+    serialWrite(getUART4(), 228);
     const unsigned char *buffer = (unsigned char*)&obs;
     for (uint16_t i = 0; i < sizeof(observation_t); i++) {
-        serialWrite(uart4Serial, buffer[i]);
+        serialWrite(getUART4(), buffer[i]);
     }   
-    serialWrite(uart4Serial, 229);
+    serialWrite(getUART4(), 229);
 }
 
 
@@ -56,10 +57,10 @@ void traj_transmission_handler(observation_t curr_state) {
                 static uint32_t last_send_time = 0;
                 uint32_t current_time = micros();
                 if((current_time - last_send_time) > US_PER_TRANS) {
+                    observation_t obs;
                     write_observation(consume_from_traj());
                     last_send_time = current_time;
                 }
-
             }
             break;
     };
