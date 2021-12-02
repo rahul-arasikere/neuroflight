@@ -22,6 +22,7 @@ limitations under the License.
 #if !defined(TF_LITE_STRIP_ERROR_STRINGS)
 #include "tflite/tensorflow/lite/micro/debug_log.h"
 #include "tflite/tensorflow/lite/micro/micro_string.h"
+#include "io/serial.h"
 #endif
 
 namespace {
@@ -53,6 +54,7 @@ void MicroPrintf(const char* format, ...) {
 #endif
 
 namespace tflite {
+  
 ErrorReporter* GetMicroErrorReporter() {
   if (error_reporter_ == nullptr) {
     error_reporter_ = new (micro_error_reporter_buffer) MicroErrorReporter();

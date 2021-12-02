@@ -18,7 +18,6 @@ limitations under the License.
 #ifdef __cplusplus
 extern "C" {
 #endif  // __cplusplus
-
 // This function should be implemented by each target platform, and provide a
 // way for strings to be output to some text stream. For more information, see
 // tensorflow/lite/micro/debug_log.cc.

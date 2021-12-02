@@ -12,17 +12,23 @@
 #include "fc/fc_rc.h"
 #include "fc/rc_controls.h"
 #include "fc/runtime_config.h"
-#include "graph/neuro.h"
+#include "neuroflight/neuro.h"
 #include "flight/imu.h"
 #include "flight/mixer.h"
 #include "sensors/gyro.h"
-#include "graph/graph_interface.h"
+#include "neuroflight/graph_interface.h"
 #include "graph_dim.h"
 #include "common/filter.h"
 #include "io/serial.h"
-#include "common/printf.h"
-#include "tflite/model_data.h"
-
+#include "io/uart4Serial.h"
+#include "trajectory_buffer.h"
+// #include "common/printf.h"
+// #include "tflite/model_data.h"
+// #include "tflite/smooth_frozen2.h"
+// #include "tflite/model_test_data.h"
+// #include "tflite/large_test.h"
+// #include "tflite/small_test.h"
+// #include "tflite/small_test_no_mul_add.h"
 
 /* An array containing inputs for the neural network 
  * where the first element is the oldest
@@ -42,6 +48,8 @@ static FAST_RAM filterApplyFnPtr dtermLpfApplyFn;
 static FAST_RAM void *dtermFilterLpf[3];
 
 static FAST_RAM float dT;
+
+
 
 
 typedef union dtermFilterLpf_u {
@@ -132,7 +140,6 @@ void neuroInit(const pidProfile_t *pidProfile)
 void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
     static timeUs_t previousTime;
     static float previousState[3];
-
     const float deltaT = ((float)(currentTimeUs - previousTime))/1000000.0f;
     previousTime = currentTimeUs;
 
@@ -185,8 +192,38 @@ void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
         }
     }
 
+    rpy_t error;
+    error.roll = 0.1;
+    error.pitch = 0.2;
+    error.yaw = 0.3;
+
+    rpy_t ang_vel;
+    ang_vel.roll = gyro.gyroADCf[0];
+    ang_vel.pitch = gyro.gyroADCf[1];
+    ang_vel.yaw = gyro.gyroADCf[2];
+
+    rpy_t ang_acc;
+    ang_acc.roll = 0.4;
+    ang_acc.pitch = 0.5;
+    ang_acc.yaw = 0.6;
+    action_t prev_action;
+    prev_action.top_left = 0;
+    prev_action.top_right = 0;
+    prev_action.bottom_left = 0;
+    prev_action.bottom_right = 0;
+
+    observation_t obs;
+    obs.error = error;
+    obs.ang_vel = ang_vel;
+    obs.ang_acc = ang_acc;
+    obs.prev_action = prev_action;
+
+    // traj_transmission_handler(obs);
+    
+    serialWrite(uart4Serial, 'a');
+
     //Evaluate the neural network graph and convert to range [-1,1]->[0,1]
-    infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, model_tflite, GRAPH_OUTPUT_SIZE);
+    // infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, model_tflite, GRAPH_OUTPUT_SIZE);
 
     for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
         float new_output = graphOutput[i];
@@ -202,9 +239,7 @@ void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
     }
 }
 
-serialPort_t *uart4Serial = NULL;
-
-#define MAX_BUFFER_SIZE 1024
+#define MAX_BUFFER_SIZE 1000
 
 #define buffer_size_t uint16_t
 #define SIZE_BYTES sizeof(buffer_size_t)/sizeof(uint8_t)
@@ -252,28 +287,43 @@ void print_block() {
 }
 
 void update_nn() {
-    for(int i = 0; i < block_size(); i++) {
-        model_tflite[i] = block_at(i);
-    }
+    // for(int i = 0; i < block_size(); i++) {
+    //     model_tflite[i] = block_at(i);
+    // }
 }
 
 crc_t block_crc() {
     uint8_t tmp;
     crc_t crcAccum = 0xffff;
-    for (int i = 0; i < block_size(); i++)
+    for (int i = 0; i < block_size(); i++) {
         tmp = block_at(i) ^ (uint8_t)(crcAccum & 0xff);
         tmp ^= (tmp << 4);
         crcAccum = (crcAccum >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4);
+    }
     return crcAccum;
 }
+
 
 void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
     if(initFlag) {
         neuroInit(pidProfile);
         initFlag = false;
-        uart4Serial = openSerialPort(SERIAL_PORT_UART4, FUNCTION_BLACKBOX, NULL, NULL, 115200, MODE_RXTX, 0);
-    }
-    if (!initFlag) {
+        initUART4();
+        // uart4Serial = openSerialPort(SERIAL_PORT_UART4, FUNCTION_BLACKBOX, NULL, NULL, 921600, MODE_RXTX, 0);
+    } else {
+        // (state)gyro.gyroADCf
+
+
+        // static int loop_count = 0;
+        // loop_count += 1;
+        // if(loop_count % 100 == 0) {
+        //     serialWrite(uart4Serial, 165);
+        //     for(unsigned int i=1; i<=100; i++) {
+        //         write_float(0.1*i);
+        //     }
+        //     serialWrite(uart4Serial, 167);
+        // }
+
         uint8_t bytesWaiting;
         while ((bytesWaiting = serialRxBytesWaiting(uart4Serial))) {
             uint8_t b = serialRead(uart4Serial);
@@ -287,9 +337,9 @@ void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
             }
         };
 
+        evaluateGraphWithErrorStateDeltaStateAct(currentTimeUs);
+        mixGraphOutput(currentTimeUs, controlOutput);
     }
-    evaluateGraphWithErrorStateDeltaStateAct(currentTimeUs);
-	mixGraphOutput(currentTimeUs, controlOutput);
 }
 
 float transformScale(float value, float oldLow, float oldHigh, float newLow, float newHigh){
