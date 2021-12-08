@@ -2,15 +2,25 @@
 #include <stdint.h>
 #include "io/serial.h"
 #include "io/uart4Serial.h"
+#include "crc.h"
+
+void add_to_traj(observation_t obs);
+observation_t consume_from_traj();
+void write_float(float x);
+void write_checked_observation(checked_observation_t obs);
+checked_observation_t with_crc(observation_t obs);
 
 #define TRAJ_SIZE 100
-
 observation_t trajectory[TRAJ_SIZE];
 uint16_t traj_size = 0;
 
 #define US_PER_BYTE (4000/14)
 
-const uint32_t US_PER_TRANS = (sizeof(observation_t) + 2) * US_PER_BYTE;
+#define START_BYTE ((char)228)
+
+#define NUM_TRANS_BYTES (sizeof(START_BYTE) + sizeof(observation_t) + sizeof(crc_t))
+
+const uint32_t US_PER_TRANS = NUM_TRANS_BYTES * US_PER_BYTE;
 
 TRAJ_BUFFER_STATE_t traj_buffer_state = PRODUCING;
 
@@ -37,15 +47,23 @@ void write_float(float x) {
         serialWrite(getUART4(), bytes_array[i]);
 }
 
-void write_observation(observation_t obs) {
-    serialWrite(getUART4(), 228);
+
+void write_checked_observation(checked_observation_t obs) {
+    serialWrite(getUART4(), START_BYTE);
     const unsigned char *buffer = (unsigned char*)&obs;
-    for (uint16_t i = 0; i < sizeof(observation_t); i++) {
+    size_t buffer_size = sizeof(obs);
+    for (uint16_t i = 0; i < buffer_size; i++) {
         serialWrite(getUART4(), buffer[i]);
-    }   
-    serialWrite(getUART4(), 229);
+    }
 }
 
+checked_observation_t with_crc(observation_t obs) {
+    crc_t crc = compute_crc((unsigned char*)&obs, sizeof(obs));
+    checked_observation_t checked_observation;
+    checked_observation.observation = obs;
+    checked_observation.crc = crc;
+    return checked_observation;
+}
 
 void traj_transmission_handler(observation_t curr_state) {
     switch(traj_buffer_state) {
@@ -58,7 +76,7 @@ void traj_transmission_handler(observation_t curr_state) {
                 uint32_t current_time = micros();
                 if((current_time - last_send_time) > US_PER_TRANS) {
                     observation_t obs;
-                    write_observation(consume_from_traj());
+                    write_checked_observation(with_crc(consume_from_traj()));
                     last_send_time = current_time;
                 }
             }

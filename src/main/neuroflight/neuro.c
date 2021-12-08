@@ -22,6 +22,7 @@
 #include "io/serial.h"
 #include "io/uart4Serial.h"
 #include "trajectory_buffer.h"
+#include "crc.h"
 // #include "common/printf.h"
 // #include "tflite/model_data.h"
 // #include "tflite/smooth_frozen2.h"
@@ -242,32 +243,30 @@ void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
 #define MAX_BUFFER_SIZE 1000
 
 #define buffer_size_t uint16_t
-#define SIZE_BYTES sizeof(buffer_size_t)/sizeof(uint8_t)
-#define crc_t uint16_t
-#define CRC_BYTES sizeof(crc_t)/sizeof(uint8_t)
-#define META_BYTES (SIZE_BYTES + CRC_BYTES)
+#define NUM_SIZE_BYTES (sizeof(buffer_size_t)/sizeof(uint8_t))
+#define NUM_META_BYTES (NUM_SIZE_BYTES + NUM_CRC_BYTES)
 
-uint8_t buffer[META_BYTES + MAX_BUFFER_SIZE];
+uint8_t buffer[NUM_META_BYTES + MAX_BUFFER_SIZE];
 buffer_size_t buffer_size = 0;
 
 buffer_size_t expected_block_size() {
-    if(SIZE_BYTES > buffer_size)
+    if(NUM_SIZE_BYTES > buffer_size)
         return 0;
     buffer_size_t num_bytes = 0;
-    for(int i=0; i < SIZE_BYTES; i++)
+    for(int i=0; i < NUM_SIZE_BYTES; i++)
         num_bytes += ((buffer_size_t)buffer[i]) << (i*8);
     return num_bytes;
 }
 
 crc_t expected_crc() {
     buffer_size_t crc = 0;
-    for(int i=SIZE_BYTES; i < SIZE_BYTES+CRC_BYTES; i++)
+    for(int i=NUM_SIZE_BYTES; i < NUM_SIZE_BYTES+NUM_CRC_BYTES; i++)
         crc += ((buffer_size_t)buffer[i]) << i*8;
     return crc;
 }
 
 buffer_size_t block_size() {
-    return (buffer_size > META_BYTES) ? (buffer_size - META_BYTES) : 0;
+    return (buffer_size > NUM_META_BYTES) ? (buffer_size - NUM_META_BYTES) : 0;
 }
 
 void add_to_buffer(uint8_t add_me) {
@@ -276,8 +275,12 @@ void add_to_buffer(uint8_t add_me) {
 }
 
 uint8_t block_at(buffer_size_t i) {
-    return buffer[i+META_BYTES];
+    return buffer[i+NUM_META_BYTES];
 }
+
+uint8_t* block_ptr() {
+    return buffer + NUM_META_BYTES;
+} 
 
 void print_block() {
     for(int i = 0; i < block_size(); i++) {
@@ -293,14 +296,15 @@ void update_nn() {
 }
 
 crc_t block_crc() {
-    uint8_t tmp;
-    crc_t crcAccum = 0xffff;
-    for (int i = 0; i < block_size(); i++) {
-        tmp = block_at(i) ^ (uint8_t)(crcAccum & 0xff);
-        tmp ^= (tmp << 4);
-        crcAccum = (crcAccum >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4);
-    }
-    return crcAccum;
+    // uint8_t tmp;
+    // crc_t crcAccum = 0xffff;
+    // for (int i = 0; i < block_size(); i++) {
+    //     tmp = block_at(i) ^ (uint8_t)(crcAccum & 0xff);
+    //     tmp ^= (tmp << 4);
+    //     crcAccum = (crcAccum >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4);
+    // }
+    // return crcAccum;
+    return compute_crc(block_ptr(), block_size());
 }
 
 
@@ -326,7 +330,7 @@ void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
         while ((bytesWaiting = serialRxBytesWaiting(getUART4()))) {
             uint8_t b = serialRead(getUART4());
             add_to_buffer(b);
-            if((buffer_size >= META_BYTES) && (block_size() == expected_block_size())) {
+            if((buffer_size >= NUM_META_BYTES) && (block_size() == expected_block_size())) {
                 // print_block();
                 update_nn();
                 serialWrite(getUART4(), '0'+(block_crc() == expected_crc()));
