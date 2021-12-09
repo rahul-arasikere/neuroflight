@@ -4,7 +4,7 @@ import sys
 import numpy
 import time
 import ctypes
-
+from crccheck.crc import Crc16Mcrf4XX
 
 first_sync_size = 1
 second_sync_size = 0
@@ -44,16 +44,6 @@ class checked_observation_t (ctypes.Structure):
         ("crc", ctypes.c_uint16)
 ]   
 
-    
-def block_crc(byte_array):
-    crcAccum = ctypes.c_uint16(0xffff)
-    for byte in map(ctypes.c_char, byte_array):
-        tmp = byte ^ ctypes.c_char(bytearray(crcAccum)[0])
-        print(type(tmp))
-        tmp ^= (tmp << 4)
-        crcAccum = (crcAccum >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4)
-        print("size of crc: ", ctypes.sizeof(crcAccum))
-    return crcAccum
 
 checked_observation =   checked_observation_t()
 
@@ -66,6 +56,10 @@ avg_loop_time = 1
 loop_num      = 0
 
 ser.read(4000)
+
+def block_crc(block):
+    crc = Crc16Mcrf4XX().calc(block)
+    return ctypes.c_uint16(crc)
 
 while True:
     loop_num += 1
@@ -83,10 +77,12 @@ while True:
         data = ser.read(ctypes.sizeof(checked_observation)) #array of bytes    
         #f_data = struct.unpack("f",data)
         ctypes.memmove(ctypes.pointer(checked_observation), data, ctypes.sizeof(checked_observation))
-        crc = block_crc(data)
-        packed_crc = crc.to_bytes(4, 'big')
+        received_crc = ctypes.c_uint16(checked_observation.crc)
+        crc = block_crc(bytes(checked_observation.observation))
+        packed_crc = bytes(crc)
     #expected_crc = ser.read(second_sync_size)
     expected_crc = checked_observation.crc
+    print(type(expected_crc))
     
     print("calculated_crc: ", crc, "   recieved_crc:", expected_crc)
     print("calculated_crc_first_byte: ", packed_crc[0], "calculated_crc_second_byte: ", packed_crc[1] )
