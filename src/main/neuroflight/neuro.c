@@ -28,6 +28,7 @@
 // #include "tflite/smooth_frozen2.h"
 // #include "tflite/model_test_data.h"
 // #include "tflite/large_test.h"
+// #include "tflite/model64x64_2_motor.h"
 // #include "tflite/small_test.h"
 // #include "tflite/small_test_no_mul_add.h"
 
@@ -42,100 +43,11 @@ static float previousOutput[GRAPH_OUTPUT_SIZE];
 static bool initFlag = true;
 
 
-
-static FAST_RAM filterApplyFnPtr dtermNotchFilterApplyFn;
-static FAST_RAM void *dtermFilterNotch[3];
-static FAST_RAM filterApplyFnPtr dtermLpfApplyFn;
-static FAST_RAM void *dtermFilterLpf[3];
-
-static FAST_RAM float dT;
-
-
-
-
-typedef union dtermFilterLpf_u {
-    pt1Filter_t pt1Filter[3];
-    biquadFilter_t biquadFilter[3];
-    firFilterDenoise_t denoisingFilter[3];
-} dtermFilterLpf_t;
-
-void neuroInitFilters(const pidProfile_t *pidProfile)
-{
-    // BUILD_BUG_ON(FD_YAW != 2); // only setting up Dterm filters on roll and pitch axes, so ensure yaw axis is 2
-    float targetLooptime = gyro.targetLooptime;
-    dT = (float)gyro.targetLooptime * 0.000001f;
-    if (targetPidLooptime == 0) {
-        // no looptime set, so set all the filters to null
-        dtermNotchFilterApplyFn = nullFilterApply;
-        dtermLpfApplyFn = nullFilterApply;
-        return;
-    }
-
-    const uint32_t pidFrequencyNyquist = (1.0f / dT) / 2; // No rounding needed
-
-    uint16_t dTermNotchHz;
-    if (pidProfile->dterm_notch_hz <= pidFrequencyNyquist) {
-        dTermNotchHz = pidProfile->dterm_notch_hz;
-    } else {
-        if (pidProfile->dterm_notch_cutoff < pidFrequencyNyquist) {
-            dTermNotchHz = pidFrequencyNyquist;
-        } else {
-            dTermNotchHz = 0;
-        }
-    }
-
-    if (dTermNotchHz != 0 && pidProfile->dterm_notch_cutoff != 0) {
-        static biquadFilter_t biquadFilterNotch[3];
-        dtermNotchFilterApplyFn = (filterApplyFnPtr)biquadFilterApply;
-        const float notchQ = filterGetNotchQ(dTermNotchHz, pidProfile->dterm_notch_cutoff);
-        for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
-            dtermFilterNotch[axis] = &biquadFilterNotch[axis];
-            biquadFilterInit(dtermFilterNotch[axis], dTermNotchHz, targetPidLooptime, notchQ, FILTER_NOTCH);
-        }
-    } else {
-        dtermNotchFilterApplyFn = nullFilterApply;
-    }
-
-    static dtermFilterLpf_t dtermFilterLpfUnion;
-    if (pidProfile->dterm_lpf_hz == 0 || pidProfile->dterm_lpf_hz > pidFrequencyNyquist) {
-        dtermLpfApplyFn = nullFilterApply;
-    } else {
-        switch (pidProfile->dterm_filter_type) {
-        default:
-            dtermLpfApplyFn = nullFilterApply;
-            break;
-        case FILTER_PT1:
-            dtermLpfApplyFn = (filterApplyFnPtr)pt1FilterApply;
-            for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
-                dtermFilterLpf[axis] = &dtermFilterLpfUnion.pt1Filter[axis];
-                pt1FilterInit(dtermFilterLpf[axis], pidProfile->dterm_lpf_hz, dT);
-            }
-            break;
-        case FILTER_BIQUAD:
-            dtermLpfApplyFn = (filterApplyFnPtr)biquadFilterApply;
-            for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
-                dtermFilterLpf[axis] = &dtermFilterLpfUnion.biquadFilter[axis];
-                biquadFilterInitLPF(dtermFilterLpf[axis], pidProfile->dterm_lpf_hz, targetPidLooptime);
-            }
-            break;
-        case FILTER_FIR:
-            dtermLpfApplyFn = (filterApplyFnPtr)firFilterDenoiseUpdate;
-            for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
-                dtermFilterLpf[axis] = &dtermFilterLpfUnion.denoisingFilter[axis];
-                firFilterDenoiseInit(dtermFilterLpf[axis], pidProfile->dterm_lpf_hz, targetPidLooptime);
-            }
-            break;
-        }
-    }
-}
-
 void neuroInit(const pidProfile_t *pidProfile)
 {
-    neuroInitFilters(pidProfile);
     for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
         previousOutput[i] = -1; 
     }
-
 }
 
 void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
@@ -220,11 +132,10 @@ void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
     obs.prev_action = prev_action;
 
     traj_transmission_handler(obs);
-    // serialWrite(getUART4(), 'a');
     
 
     //Evaluate the neural network graph and convert to range [-1,1]->[0,1]
-    // infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, model_tflite, GRAPH_OUTPUT_SIZE);
+    // infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, memory_trick(), GRAPH_OUTPUT_SIZE);
 
     for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
         float new_output = graphOutput[i];
@@ -291,19 +202,11 @@ void print_block() {
 
 void update_nn() {
     // for(int i = 0; i < block_size(); i++) {
-    //     model_tflite[i] = block_at(i);
+    //     memory_trick()[i] = block_at(i);
     // }
 }
 
 crc_t block_crc() {
-    // uint8_t tmp;
-    // crc_t crcAccum = 0xffff;
-    // for (int i = 0; i < block_size(); i++) {
-    //     tmp = block_at(i) ^ (uint8_t)(crcAccum & 0xff);
-    //     tmp ^= (tmp << 4);
-    //     crcAccum = (crcAccum >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4);
-    // }
-    // return crcAccum;
     return compute_crc(block_ptr(), block_size());
 }
 
@@ -312,6 +215,9 @@ void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
     if(initFlag) {
         neuroInit(pidProfile);
         initFlag = false;
+        // for(int i = 0; i < model_tflite_len; i++) {
+        //     memory_trick()[i] = model64x64_2_motor_tflite[i];
+        // }
     } else {
         // (state)gyro.gyroADCf
 

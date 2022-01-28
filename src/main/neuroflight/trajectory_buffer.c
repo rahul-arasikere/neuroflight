@@ -14,11 +14,11 @@ checked_observation_t with_crc(observation_t obs);
 observation_t trajectory[TRAJ_SIZE];
 uint16_t traj_size = 0;
 
-#define US_PER_BYTE (4000/14)
+#define US_PER_BYTE (8000/14)
 
 #define START_BYTE ((char)228)
 
-#define NUM_TRANS_BYTES (sizeof(START_BYTE) + sizeof(observation_t) + sizeof(crc_t))
+#define NUM_TRANS_BYTES (sizeof(START_BYTE) + sizeof(checked_observation_t))
 
 const uint32_t US_PER_TRANS = NUM_TRANS_BYTES * US_PER_BYTE;
 
@@ -49,6 +49,16 @@ void write_float(float x) {
 
 
 void write_checked_observation(checked_observation_t obs) {
+    serialWrite(getUART4(), START_BYTE);
+    const unsigned char *buffer = (unsigned char*)&obs;
+    size_t buffer_size = sizeof(obs);
+    for (uint16_t i = 0; i < buffer_size; i++) {
+        serialWrite(getUART4(), buffer[i]);
+    }
+}
+
+
+void write_observation(observation_t obs) {
     serialWrite(getUART4(), START_BYTE);
     const unsigned char *buffer = (unsigned char*)&obs;
     size_t buffer_size = sizeof(obs);

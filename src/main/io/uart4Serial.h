@@ -3,6 +3,6 @@
 
 #include "io/serial.h"
 
-serialPort_t* getUART4();
+extern serialPort_t* getUART4();
 
 #endif
