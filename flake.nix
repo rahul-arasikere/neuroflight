@@ -34,7 +34,8 @@
             requirements=''
               numpy
               tensorflow
-              serial
+              pyserial
+              crccheck
               mypy
             '';
           };
