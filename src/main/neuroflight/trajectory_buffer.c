@@ -3,6 +3,7 @@
 #include "io/serial.h"
 #include "io/uart4Serial.h"
 #include "crc.h"
+#include "byte_utils.h"
 
 void add_to_traj(observation_t obs);
 observation_t consume_from_traj();
@@ -14,7 +15,7 @@ checked_observation_t with_crc(observation_t obs);
 observation_t trajectory[TRAJ_SIZE];
 uint16_t traj_size = 0;
 
-#define US_PER_BYTE (8000/14)
+#define US_PER_BYTE (4000/14)
 
 #define START_BYTE ((char)228)
 
@@ -40,33 +41,6 @@ observation_t consume_from_traj() {
     return trajectory[traj_size];
 }
 
-void write_float(float x) {
-    unsigned char bytes_array[sizeof(float)];
-    *((float *)bytes_array) = x;
-    for(unsigned int i = 0; i < sizeof(bytes_array); i++)
-        serialWrite(getUART4(), bytes_array[i]);
-}
-
-
-void write_checked_observation(checked_observation_t obs) {
-    serialWrite(getUART4(), START_BYTE);
-    const unsigned char *buffer = (unsigned char*)&obs;
-    size_t buffer_size = sizeof(obs);
-    for (uint16_t i = 0; i < buffer_size; i++) {
-        serialWrite(getUART4(), buffer[i]);
-    }
-}
-
-
-void write_observation(observation_t obs) {
-    serialWrite(getUART4(), START_BYTE);
-    const unsigned char *buffer = (unsigned char*)&obs;
-    size_t buffer_size = sizeof(obs);
-    for (uint16_t i = 0; i < buffer_size; i++) {
-        serialWrite(getUART4(), buffer[i]);
-    }
-}
-
 checked_observation_t with_crc(observation_t obs) {
     crc_t crc = compute_crc((unsigned char*)&obs, sizeof(obs));
     checked_observation_t checked_observation;
@@ -85,8 +59,8 @@ void traj_transmission_handler(observation_t curr_state) {
                 static uint32_t last_send_time = 0;
                 uint32_t current_time = micros();
                 if((current_time - last_send_time) > US_PER_TRANS) {
-                    observation_t obs;
-                    write_checked_observation(with_crc(consume_from_traj()));
+                    serialWrite(getUART4(), START_BYTE);
+                    write_little_endian(with_crc(consume_from_traj()));
                     last_send_time = current_time;
                 }
             }
