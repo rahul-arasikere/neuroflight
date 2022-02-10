@@ -17,6 +17,12 @@
 
 #pragma once
 
+#ifdef __cplusplus
+#define EXTERNC extern "C"
+#else
+#define EXTERNC
+#endif
+
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -48,6 +54,8 @@ void systemResetToBootloader(void);
 bool isMPUSoftReset(void);
 void cycleCounterInit(void);
 void checkForBootLoaderRequest(void);
+
+EXTERNC uint32_t micros(void);
 
 void enableGPIOPowerUsageAndNoiseReductions(void);
 // current crystal frequency - 8 or 12MHz

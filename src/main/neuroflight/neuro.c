@@ -55,7 +55,6 @@ void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
 	static timeUs_t previousTime;
 	static float previousState[3];
 	const float deltaT = ((float)(currentTimeUs - previousTime))/1000000.0f;
-	previousTime = currentTimeUs;
 
 	//Prepare the neural network inputs
 	// Set the current error and deriviate
@@ -126,13 +125,17 @@ void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
 	prev_action.bottom_left = 0;
 	prev_action.bottom_right = 0;
 
-	observation_t obs;
-	obs.error = error;
-	obs.ang_vel = ang_vel;
-	obs.ang_acc = ang_acc;
-	obs.prev_action = prev_action;
+	observation_t obs = {
+		.error = error,
+		.ang_vel = ang_vel,
+		.ang_acc = ang_acc,
+		.prev_action = prev_action,
+		// .delta_micros = currentTimeUs - previousTime,
+		// .delta_micros = infer_time,
+		// .iter = 0
+	};
 
-	traj_transmission_handler(obs);
+	// traj_transmission_handler(obs);
 
 	//Evaluate the neural network graph and convert to range [-1,1]->[0,1]
 	infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, memory_trick(), GRAPH_OUTPUT_SIZE);
@@ -149,6 +152,7 @@ void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
 			debug[i] = (int16_t)(previousOutput[i] * 1000.0);
 		}
 	}
+	previousTime = currentTimeUs;
 }
 
 #define MAX_BUFFER_SIZE 30000
@@ -216,14 +220,20 @@ void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
 		initFlag = false;
 		serialWrite(getUART4(), 'a');
 	} else {
+		// serialWrite(getUART4(), 'a');
 		uint8_t bytesWaiting;
 		while ((bytesWaiting = serialRxBytesWaiting(getUART4()))) {
 			uint8_t b = serialRead(getUART4());
+			serialWrite(getUART4(), b);
 			add_to_buffer(b);
 			if((buffer_size >= NUM_META_BYTES) && (block_size() == expected_block_size())) {
 				// print_block();
-				write_little_endian(block_size());
-				write_little_endian(block_crc());
+				// serialWrite(getUART4(), 'a');
+				// serialWrite(getUART4(), 'a');
+				// serialWrite(getUART4(), 'a');
+				// serialWrite(getUART4(), 'a');
+				// write_little_endian(block_size());
+				// write_little_endian(block_crc());
 				if(block_crc() == expected_crc())
 					update_nn();
 				buffer_size = 0;

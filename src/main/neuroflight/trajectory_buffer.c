@@ -26,6 +26,7 @@ const uint32_t US_PER_TRANS = NUM_TRANS_BYTES * US_PER_BYTE;
 TRAJ_BUFFER_STATE_t traj_buffer_state = PRODUCING;
 
 void add_to_traj(observation_t obs) {
+    // obs.iter = traj_size;
     trajectory[traj_size] = obs;
     traj_size++;
     if(traj_size >= TRAJ_SIZE) {

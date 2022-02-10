@@ -3,7 +3,9 @@
 const unsigned int model_tflite_len = 23152;
 
 
-unsigned char model64x64_1[] = {
+unsigned char model64x64_1[23152];
+
+const unsigned char saved[] = {
     0x1c, 0x00, 0x00, 0x00, 0x54, 0x46, 0x4c, 0x33, 0x14, 0x00, 0x20, 0x00,
     0x04, 0x00, 0x08, 0x00, 0x0c, 0x00, 0x10, 0x00, 0x14, 0x00, 0x00, 0x00,
     0x18, 0x00, 0x1c, 0x00, 0x14, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00,
@@ -1937,9 +1939,9 @@ unsigned char model64x64_1[] = {
   };
 
 unsigned char* memory_trick() {
-  // if(model64x64_1[0] != 0x1c) {
-  //   for(int i = 0; i < model_tflite_len; i++)
-  //     model64x64_1[i] = saved[i];
-  // }
+  if(model64x64_1[0] != 0x1c) {
+    for(int i = 0; i < model_tflite_len; i++)
+      model64x64_1[i] = saved[i];
+  }
   return model64x64_1;
 }
