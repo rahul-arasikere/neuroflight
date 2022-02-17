@@ -37,6 +37,7 @@
               pyserial
               crccheck
               mypy
+              tqdm
             '';
           };
       in {
