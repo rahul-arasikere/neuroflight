@@ -41,7 +41,13 @@ static float graphOutput[GRAPH_OUTPUT_SIZE];
 static float controlOutput[GRAPH_OUTPUT_SIZE];
 static float previousOutput[GRAPH_OUTPUT_SIZE];
 
+typedef enum TRANSMISSION_STATE_t {
+    RECEIVING_NN,
+    SENDING_OBS
+} TRAJ_BUFFER_STATE_t;
+
 static bool initFlag = true;
+static TRANSMISSION_STATE_t trans_state = SENDING_OBS;
 
 
 void neuroInit(const pidProfile_t *pidProfile)
@@ -134,8 +140,8 @@ void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
 		// .delta_micros = infer_time,
 		// .iter = 0
 	};
-
-	// traj_transmission_handler(obs);
+	if(trans_state == SENDING_OBS)
+		traj_transmission_handler(obs);
 
 	//Evaluate the neural network graph and convert to range [-1,1]->[0,1]
 	infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, memory_trick(), GRAPH_OUTPUT_SIZE);
@@ -214,26 +220,27 @@ crc_t block_crc() {
 	return compute_crc(block_ptr(), block_size());
 }
 
+
 void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
+	static int i = 0;
+	i++;
 	if(initFlag) {
 		neuroInit(pidProfile);
 		initFlag = false;
 		serialWrite(getUART4(), 'a');
+		serialWrite(getUART4(), 'a');
+		serialWrite(getUART4(), 'a');
+		serialWrite(getUART4(), 'a');
 	} else {
-		// serialWrite(getUART4(), 'a');
-		uint8_t bytesWaiting;
+		uint32_t bytesWaiting;
 		while ((bytesWaiting = serialRxBytesWaiting(getUART4()))) {
+			trans_state = RECEIVING_NN;
 			uint8_t b = serialRead(getUART4());
-			serialWrite(getUART4(), b);
 			add_to_buffer(b);
 			if((buffer_size >= NUM_META_BYTES) && (block_size() == expected_block_size())) {
-				// print_block();
-				// serialWrite(getUART4(), 'a');
-				// serialWrite(getUART4(), 'a');
-				// serialWrite(getUART4(), 'a');
-				// serialWrite(getUART4(), 'a');
-				// write_little_endian(block_size());
-				// write_little_endian(block_crc());
+				write_little_endian(block_size());
+				write_little_endian(block_crc());
+				trans_state = SENDING_OBS;
 				if(block_crc() == expected_crc())
 					update_nn();
 				buffer_size = 0;

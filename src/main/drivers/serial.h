@@ -46,6 +46,8 @@ typedef enum {
     SERIAL_BIDIR_OD        = 0 << 4,
     SERIAL_BIDIR_PP        = 1 << 4,
     SERIAL_BIDIR_NOPULL    = 1 << 5, // disable pulls in BIDIR RX mode
+    SERIAL_NO_HW_FLOW_CTRL = 0 << 6,
+    SERIAL_HW_FLOW_CTRL    = 1 << 6,
 } portOptions_e;
 
 typedef void (*serialReceiveCallbackPtr)(uint16_t data, void *rxCallbackData);   // used by serial drivers to return frames to app

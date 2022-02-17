@@ -82,7 +82,8 @@ void uartReconfigure(uartPort_t *uartPort)
     uartPort->Handle.Init.WordLength = (uartPort->port.options & SERIAL_PARITY_EVEN) ? UART_WORDLENGTH_9B : UART_WORDLENGTH_8B;
     uartPort->Handle.Init.StopBits = (uartPort->port.options & SERIAL_STOPBITS_2) ? USART_STOPBITS_2 : USART_STOPBITS_1;
     uartPort->Handle.Init.Parity = (uartPort->port.options & SERIAL_PARITY_EVEN) ? USART_PARITY_EVEN : USART_PARITY_NONE;
-    uartPort->Handle.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+    uartPort->Handle.Init.HwFlowCtl = (uartPort->port.options & SERIAL_HW_FLOW_CTRL) ? UART_HWCONTROL_RTS_CTS : UART_HWCONTROL_NONE;
+
     uartPort->Handle.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
     uartPort->Handle.Init.Mode = 0;
 
