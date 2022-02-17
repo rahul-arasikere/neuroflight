@@ -3,11 +3,16 @@
 #include "graph_interface.h"
 #include "tflite/inference.h"
 #include "io/uart4Serial.h"
+#include "drivers/system.h"
+
+uint32_t infer_time = 0;
 
 
 void infer(float *input, int input_size, float *output, const uint8_t* model_data, int output_size) {
+	// failureMode(0);
+	const long before_reading = micros();
 	tflite::MicroErrorReporter micro_error_reporter;
-	tflite::Model* model = ::tflite::GetModel(model_data);
+	const tflite::Model* model = ::tflite::GetModel(model_data);
 	// if (model->version() != TFLITE_SCHEMA_VERSION) {
 	// 	serialPrint(getUART4(), "Model version does not match Schema");
 	// 	while(1);
@@ -22,17 +27,16 @@ void infer(float *input, int input_size, float *output, const uint8_t* model_dat
 	resolver.AddMul();
 	resolver.AddAdd();
 	resolver.AddTanh();
-
 	resolver.AddReshape();
 	resolver.AddSoftmax();
 	static constexpr int tensor_arena_size = 30 * 1024; //limit of 100kb
 	static uint8_t tensor_arena[tensor_arena_size];
-
 	tflite::MicroInterpreter interpreter(
 		model, resolver, tensor_arena, tensor_arena_size, &micro_error_reporter
 	);
 	
 	TfLiteStatus allocate_status = interpreter.AllocateTensors();
+	infer_time = micros() - before_reading;
 	// if (allocate_status != kTfLiteOk) {
 	// 	serialPrint(getUART4(), "AllocateTensors() failed");
 	// 	while(1);
