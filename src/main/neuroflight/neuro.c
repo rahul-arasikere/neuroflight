@@ -43,8 +43,10 @@ static float previousOutput[GRAPH_OUTPUT_SIZE];
 
 typedef enum TRANSMISSION_STATE_t {
     RECEIVING_NN,
-    SENDING_OBS
-} TRAJ_BUFFER_STATE_t;
+    WAIT_FOR_COMMAND,
+    SENDING_OBS,
+    DEAD
+} TRANSMISSION_STATE_t;
 
 static bool initFlag = true;
 static TRANSMISSION_STATE_t trans_state = SENDING_OBS;
@@ -136,9 +138,9 @@ void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
 		.ang_vel = ang_vel,
 		.ang_acc = ang_acc,
 		.prev_action = prev_action,
-		// .delta_micros = currentTimeUs - previousTime,
+		.delta_micros = currentTimeUs - previousTime,
 		// .delta_micros = infer_time,
-		// .iter = 0
+		.iter = 0
 	};
 	if(trans_state == SENDING_OBS)
 		traj_transmission_handler(obs);
@@ -223,6 +225,7 @@ crc_t block_crc() {
 
 void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
 	static int i = 0;
+	static uint32_t time_since_last_byte = 0;
 	i++;
 	if(initFlag) {
 		neuroInit(pidProfile);
@@ -230,20 +233,43 @@ void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
 		serialWrite(getUART4(), 'a');
 		serialWrite(getUART4(), 'a');
 		serialWrite(getUART4(), 'a');
-		serialWrite(getUART4(), 'a');
+		delay(500);
 	} else {
+		if((trans_state == WAIT_FOR_COMMAND || trans_state == RECEIVING_NN) && ((micros() - time_since_last_byte) > 500000)){
+			serialWrite(getUART4(), 0xdd);
+			serialWrite(getUART4(), 0xee);
+			serialWrite(getUART4(), 0xaa);
+			serialWrite(getUART4(), 0xdd);
+			trans_state = DEAD;
+			time_since_last_byte = micros();
+			buffer_size = 0;
+		}
+
 		uint32_t bytesWaiting;
 		while ((bytesWaiting = serialRxBytesWaiting(getUART4()))) {
+			time_since_last_byte = micros();
+			uint8_t read_byte = serialRead(getUART4());
+			if(trans_state == WAIT_FOR_COMMAND || trans_state == DEAD) {
+				if((int)'b' == read_byte) {
+					write_little_endian(block_size());
+					write_little_endian(block_crc());
+				} else if((int)'c' == read_byte) {
+					trans_state = SENDING_OBS;
+					buffer_size = 0;
+				}
+
+				
+				continue;
+			}
+
+
 			trans_state = RECEIVING_NN;
-			uint8_t b = serialRead(getUART4());
-			add_to_buffer(b);
+			add_to_buffer(read_byte);
 			if((buffer_size >= NUM_META_BYTES) && (block_size() == expected_block_size())) {
-				write_little_endian(block_size());
-				write_little_endian(block_crc());
-				trans_state = SENDING_OBS;
+
+				trans_state = WAIT_FOR_COMMAND;
 				if(block_crc() == expected_crc())
 					update_nn();
-				buffer_size = 0;
 			}
 		};
 

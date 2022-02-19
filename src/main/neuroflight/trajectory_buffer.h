@@ -21,8 +21,8 @@ typedef struct observation_t {
     rpy_t ang_vel;
     rpy_t ang_acc;
     action_t prev_action;
-    // uint16_t iter;
-    // uint16_t delta_micros;
+    uint16_t iter;
+    uint16_t delta_micros;
 } __attribute__((packed)) observation_t;
 
 
