@@ -46,8 +46,8 @@ class observation_t (MyStructure):
         ("ang_vel", rpy_t),                   #12B 
         ("ang_acc", rpy_t),                   #12B 
         ("prev_action", action_t),            #16B     
-        # ("iter", ctypes.c_uint16),            #16B 
-        # ("delta_micros", ctypes.c_uint16)     #16B 
+        ("iter", ctypes.c_uint16),            #16B 
+        ("delta_micros", ctypes.c_uint16)     #16B 
 ]   
     
 class checked_observation_t (MyStructure):
@@ -75,7 +75,7 @@ def keep_receiving(
         first_sync_size = 1,
         second_sync_size=0,
         expected_num=1,
-        debug=False
+        debug=True
     ):
 
     checked_observation = checked_observation_t()
@@ -122,6 +122,34 @@ def keep_receiving(
                 
         avg_loop_time = avg_loop_time*0.9 + 0.1*(time.time()-begin)
 
+            
+def receive_obs(ser, check, keep_checking=False, debug=True):
+    checked_observation = checked_observation_t()
+    if check:
+        while True:
+            sync_byte = ser.read(1)
+            if ord(sync_byte)==228:
+                check = keep_checking
+                break
+    else:
+        ser.read()
+        
+    data = ser.read(ctypes.sizeof(checked_observation)) #array of bytes    
+    ctypes.memmove(ctypes.pointer(checked_observation),
+        data, ctypes.sizeof(checked_observation))
+    received_crc = ctypes.c_uint16(checked_observation.crc)
+    crc = block_crc(bytes(checked_observation.observation))
+    expected_crc = checked_observation.crc
+
+    if debug:    
+        print("calculated_crc: ", crc.value, "   recieved_crc:", expected_crc)
+        if(expected_crc != crc.value):
+            print("not match in crc")
+        else:
+            print("recieved struct:")
+            print(checked_observation.observation,"\n\n")
+    return check
+
 
 def send_and_recieve_byte(
         ser,
@@ -143,5 +171,5 @@ if __name__ == '__main__':
 
     #ser.read(4000)
     #send_and_recieve_byte(ser)
-    keep_receiving(ser, debug=True)
+    keep_receiving(ser)
     ser.close()

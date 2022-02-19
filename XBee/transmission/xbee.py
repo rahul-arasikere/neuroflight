@@ -3,6 +3,7 @@ import serial
 
 
 def empty_read_buffer(ser):
+    time.sleep(0.1)
     read_stuff = b""
     while ser.in_waiting > 0:
         read_stuff += ser.read(ser.in_waiting)
@@ -13,7 +14,7 @@ def check_xbee_bypass_mode(ser):
     print("Checking XBEE mode")
     time.sleep(1)
     ser.write(b'+++') #this would result in getting a "Unknown" reply
-    time.sleep(2)
+    time.sleep(1.1)
     # print(ser.in_waiting)
     reply = ser.read(ser.in_waiting)
     if(reply == b"+++"):
