@@ -17,9 +17,6 @@ class MyStructure(ctypes.Structure):
         return {field[0]: getattr(self, field[0])
             for field in self._fields_}
 
-class test_t (MyStructure):
-    _pack = 1
-    _fields_ = [("thing", ctypes.c_uint16)]
 
 class rpy_t (MyStructure):
     _pack_ = 1
@@ -32,10 +29,10 @@ class rpy_t (MyStructure):
 class action_t (MyStructure):
     _pack_ = 1
     _fields_ = [
-        ("bottom_right", ctypes.c_float),  #4B
+        ("top_left", ctypes.c_float)     #4B
         ("top_right", ctypes.c_float),    #4B
         ("bottom_left", ctypes.c_float),  #4B
-        ("top_left", ctypes.c_float)     #4B
+        ("bottom_right", ctypes.c_float),  #4B
     ]
 
 class observation_t (MyStructure):
