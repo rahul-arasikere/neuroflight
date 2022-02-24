@@ -17,18 +17,12 @@ void infer(float *input, int input_size, float *output, const uint8_t* model_dat
 	// 	serialPrint(getUART4(), "Model version does not match Schema");
 	// 	while(1);
 	// }
-	tflite::MicroMutableOpResolver<11> resolver;
+	tflite::MicroMutableOpResolver<5> resolver;
 	resolver.AddFullyConnected();
-	resolver.AddMinimum();
-	resolver.AddArgMin();
-	resolver.AddMaximum();
-	resolver.AddArgMax();
 	resolver.AddSub();
 	resolver.AddMul();
 	resolver.AddAdd();
 	resolver.AddTanh();
-	resolver.AddReshape();
-	resolver.AddSoftmax();
 	static constexpr int tensor_arena_size = 30 * 1024; //limit of 100kb
 	static uint8_t tensor_arena[tensor_arena_size];
 	tflite::MicroInterpreter interpreter(

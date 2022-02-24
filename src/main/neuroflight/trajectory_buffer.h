@@ -38,5 +38,6 @@ typedef enum TRAJ_BUFFER_STATE_t {
 
 
 void traj_transmission_handler(observation_t curr_state);
+void reset_trajectory();
 
 #endif

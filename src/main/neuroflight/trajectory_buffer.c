@@ -50,6 +50,11 @@ checked_observation_t with_crc(observation_t obs) {
     return checked_observation;
 }
 
+void reset_trajectory() {
+    traj_size = 0;
+    traj_buffer_state = PRODUCING;
+}
+
 void traj_transmission_handler(observation_t curr_state) {
     switch(traj_buffer_state) {
         case PRODUCING:

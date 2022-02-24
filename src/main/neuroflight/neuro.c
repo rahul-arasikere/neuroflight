@@ -113,25 +113,26 @@ void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
 		}
 	}
 
-	rpy_t error;
-	error.roll = 0.1;
-	error.pitch = 0.2;
-	error.yaw = 0.3;
-
 	rpy_t ang_vel;
-	ang_vel.roll = gyro.gyroADCf[0];
-	ang_vel.pitch = gyro.gyroADCf[1];
-	ang_vel.yaw = gyro.gyroADCf[2];
+	ang_vel.roll = gyro.gyroADCf[FD_ROLL];
+	ang_vel.pitch = gyro.gyroADCf[FD_PITCH];
+	ang_vel.yaw = gyro.gyroADCf[FD_YAW];
+
+	rpy_t error;
+	error.roll = getSetpointRate(FD_ROLL) - ang_vel.roll;
+	error.pitch = getSetpointRate(FD_PITCH) - ang_vel.pitch;
+	error.yaw = getSetpointRate(FD_YAW) - ang_vel.yaw;
+
 
 	rpy_t ang_acc;
-	ang_acc.roll = 0.4;
-	ang_acc.pitch = 0.5;
-	ang_acc.yaw = 0.6;
+	ang_acc.roll = ang_vel.roll - previousState[FD_ROLL];
+	ang_acc.pitch = ang_vel.pitch - previousState[FD_PITCH];
+	ang_acc.yaw = ang_vel.yaw - previousState[FD_YAW];
 	action_t prev_action;
-	prev_action.top_left = 0;
-	prev_action.top_right = 0;
-	prev_action.bottom_left = 0;
-	prev_action.bottom_right = 0;
+	prev_action.top_left = previousOutput[0];
+	prev_action.top_right = previousOutput[1];
+	prev_action.bottom_left = previousOutput[2];
+	prev_action.bottom_right = previousOutput[3];
 
 	observation_t obs = {
 		.error = error,
@@ -255,6 +256,7 @@ void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
 					write_little_endian(block_crc());
 				} else if((int)'c' == read_byte) {
 					trans_state = SENDING_OBS;
+					reset_trajectory();
 					buffer_size = 0;
 				}
 
