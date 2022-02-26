@@ -29,7 +29,7 @@ class rpy_t (MyStructure):
 class action_t (MyStructure):
     _pack_ = 1
     _fields_ = [
-        ("top_left", ctypes.c_float)     #4B
+        ("top_left", ctypes.c_float),     #4B
         ("top_right", ctypes.c_float),    #4B
         ("bottom_left", ctypes.c_float),  #4B
         ("bottom_right", ctypes.c_float),  #4B

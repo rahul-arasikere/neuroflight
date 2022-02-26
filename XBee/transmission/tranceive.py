@@ -9,6 +9,7 @@ import spinup
 import copy
 from gym import spaces
 import numpy as np
+import os
 from multiprocessing import Process, Queue
 import tensorflow as tf
 
@@ -16,17 +17,34 @@ def clear_queue(q):
     while not q.empty():
         q.get()
 
+def existing_actor_critic(*args, **kwargs):
+    actor = tf.keras.models.load_model("actor"
+    )
+    critic = tf.keras.models.load_model("critic")
+    return actor, critic 
+
+
 def live_training(nn_queue, obs_queue):
     action_space = spaces.Box(-np.ones(4), np.ones(4), dtype=np.float32)
     observation_space = spaces.Box(-np.inf, np.inf, shape=(13,), dtype=np.float32)
     def on_save(actor, critic, epoch):
+        save_path = os.path.join(".", f"ckpt_{epoch}")
+        critic.save(os.path.join(save_path, "critic"))
+        actor.save(os.path.join(save_path, "actor"))
         print("Sending new actor!")
         converted = tf.lite.TFLiteConverter.from_keras_model(actor).convert()
         with open("sent.tflite", "wb") as f:
             f.write(converted)
 
         nn_queue.put(converted)
-    spinup.live_ddpg(obs_queue, observation_space, action_space, on_save=on_save)
+    spinup.live_ddpg(
+        obs_queue,
+        observation_space,
+        action_space,
+        actor_critic=existing_actor_critic,
+        on_save=on_save,
+        safety_q=tf.keras.models.load_model("critic")
+    )
 
 
 def tranceive(ser, nn_queue, obs_queue, circular_buffer_size=2000):
