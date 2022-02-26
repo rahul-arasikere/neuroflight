@@ -9,17 +9,13 @@ import xbee
 
 
 class MyStructure(ctypes.Structure):
-
     def __repr__(self) -> str:
         values = ", ".join(f"{name}={value}"
             for name, value in self._asdict().items())
         return f"<{self.__class__.__name__}: {values}>"
-
     def _asdict(self) -> dict:
-       return {field[0]: getattr(self, field[0])
-            for field in self._fields_
-}    
-
+        return {field[0]: getattr(self, field[0])
+            for field in self._fields_}
 
 
 class rpy_t (MyStructure):
@@ -33,10 +29,10 @@ class rpy_t (MyStructure):
 class action_t (MyStructure):
     _pack_ = 1
     _fields_ = [
-        ("bottom_right", ctypes.c_float),  #4B
+        ("top_left", ctypes.c_float),     #4B
         ("top_right", ctypes.c_float),    #4B
         ("bottom_left", ctypes.c_float),  #4B
-        ("top_left", ctypes.c_float)     #4B
+        ("bottom_right", ctypes.c_float),  #4B
     ]
 
 class observation_t (MyStructure):
@@ -148,7 +144,7 @@ def receive_obs(ser, check, keep_checking=False, debug=True):
         else:
             print("recieved struct:")
             print(checked_observation.observation,"\n\n")
-    return check
+    return check, checked_observation.observation
 
 
 def send_and_recieve_byte(
