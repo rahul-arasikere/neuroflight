@@ -55,7 +55,7 @@ static TRANSMISSION_STATE_t trans_state = SENDING_OBS;
 void neuroInit(const pidProfile_t *pidProfile)
 {
 	for (int i = 0; i < GRAPH_OUTPUT_SIZE; i++) {
-		previousOutput[i] = -1; 
+		previousOutput[i] = 0.0; 
 	}
 }
 
