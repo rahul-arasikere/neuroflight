@@ -46,25 +46,28 @@ def live_training(nn_queue, obs_queue):
         safety_q=tf.keras.models.load_model("critic")
     )
 
+# def unimportant_obs_filter(obs1, obs2):
+
 
 def tranceive(ser, nn_queue, obs_queue, circular_buffer_size=2000):
     check = True
     obs_dropped_count = 0
-    prev_obs = None
+    next_obs = None
     while True:
         while nn_queue.empty():
             check, obs = receiver.receive_obs(ser, check, debug=False)
-            if prev_obs:
-                if prev_obs.iter == obs.iter + 1: # trajectories are reversed
-                    obs_queue.put((copy.deepcopy(prev_obs), obs.prev_action, obs))
+            if next_obs:
+                if obs.iter + 1 == next_obs.iter: # trajectories are reversed
+                    obs_queue.put((obs, next_obs.prev_action, copy.deepcopy(next_obs)))
                     if obs_queue.qsize() > circular_buffer_size:
                         obs_queue.get()
                 else:
                     obs_dropped_count += 1
                     print("obs dropped:", obs_dropped_count)
-            prev_obs = obs
+            next_obs = obs
         NN_to_send = nn_queue.get_nowait() # nn_queue should always be non-empty
         xbee.empty_read_buffer(ser)
+        print("TRANSMITTING")
         transmitter.transmit(ser, NN_to_send)
         xbee.empty_read_buffer(ser)
         print("DEBUG: bytes on input buffer: ", ser.in_waiting)
