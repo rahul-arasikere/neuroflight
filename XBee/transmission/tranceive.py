@@ -5,13 +5,15 @@ import serial
 from threading import Thread
 import xbee
 import datetime
-import spinup
+from live_ddpg import live_ddpg
 import copy
 from gym import spaces
 import numpy as np
+import pickle
 import os
 from multiprocessing import Process, Queue
 import tensorflow as tf
+import obs_utils
 
 def clear_queue(q):
     while not q.empty():
@@ -22,7 +24,6 @@ def existing_actor_critic(*args, **kwargs):
     )
     critic = tf.keras.models.load_model("critic")
     return actor, critic 
-
 
 def live_training(nn_queue, obs_queue):
     action_space = spaces.Box(-np.ones(4), np.ones(4), dtype=np.float32)
@@ -35,33 +36,39 @@ def live_training(nn_queue, obs_queue):
         converted = tf.lite.TFLiteConverter.from_keras_model(actor).convert()
         with open("sent.tflite", "wb") as f:
             f.write(converted)
-
         nn_queue.put(converted)
-    spinup.live_ddpg(
+
+    live_ddpg(
         obs_queue,
         observation_space,
         action_space,
         actor_critic=existing_actor_critic,
         on_save=on_save,
-        safety_q=tf.keras.models.load_model("critic")
+        # anchor_q=tf.keras.models.load_model("critic")
     )
 
 # def unimportant_obs_filter(obs1, obs2):
-
+def save_traj(traj):
+    pickle.dump( traj, open( "traj.p", "wb" ) )
 
 def tranceive(ser, nn_queue, obs_queue, circular_buffer_size=2000):
     check = True
     obs_dropped_count = 0
     next_obs = None
+    current_traj = []
     while True:
         while nn_queue.empty():
-            check, obs = receiver.receive_obs(ser, check, debug=False)
+            check, obs = receiver.receive_obs(ser, check,keep_checking=True, debug=False)
             if next_obs:
                 if obs.iter + 1 == next_obs.iter: # trajectories are reversed
+                    current_traj.append(obs)
                     obs_queue.put((obs, next_obs.prev_action, copy.deepcopy(next_obs)))
                     if obs_queue.qsize() > circular_buffer_size:
                         obs_queue.get()
                 else:
+                    current_traj.reverse()
+                    save_traj(current_traj)
+                    current_traj = []
                     obs_dropped_count += 1
                     print("obs dropped:", obs_dropped_count)
             next_obs = obs

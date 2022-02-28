@@ -24,6 +24,7 @@
 #include "trajectory_buffer.h"
 #include "crc.h"
 #include "byte_utils.h"
+#include "fc/runtime_config.h"
 // #include "common/printf.h"
 // #include "tflite/model_data.h"
 // #include "tflite/smooth_frozen2.h"
@@ -63,6 +64,41 @@ void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
 	static timeUs_t previousTime;
 	static float previousState[3];
 	const float deltaT = ((float)(currentTimeUs - previousTime))/1000000.0f;
+
+
+	rpy_t ang_vel;
+	ang_vel.roll = gyro.gyroADCf[FD_ROLL];
+	ang_vel.pitch = gyro.gyroADCf[FD_PITCH];
+	ang_vel.yaw = gyro.gyroADCf[FD_YAW];
+
+	rpy_t ang_acc;
+	ang_acc.roll = ang_vel.roll - previousState[FD_ROLL];
+	ang_acc.pitch = ang_vel.pitch - previousState[FD_PITCH];
+	ang_acc.yaw = ang_vel.yaw - previousState[FD_YAW];
+
+	rpy_t error;
+	error.roll = getSetpointRate(FD_ROLL) - ang_vel.roll;
+	error.pitch = getSetpointRate(FD_PITCH) - ang_vel.pitch;
+	error.yaw = getSetpointRate(FD_YAW) - ang_vel.yaw;
+
+
+	action_t prev_action;
+	prev_action.top_left = previousOutput[0];
+	prev_action.top_right = previousOutput[1];
+	prev_action.bottom_left = previousOutput[2];
+	prev_action.bottom_right = previousOutput[3];
+
+	observation_t obs = {
+		.error = error,
+		.ang_vel = ang_vel,
+		.ang_acc = ang_acc,
+		.prev_action = prev_action,
+		.delta_micros = currentTimeUs - previousTime,
+		// .delta_micros = infer_time,
+		.iter = 0
+	};
+	if(trans_state == SENDING_OBS && ARMING_FLAG(ARMED))
+		traj_transmission_handler(obs);
 
 	//Prepare the neural network inputs
 	// Set the current error and deriviate
@@ -113,38 +149,7 @@ void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
 		}
 	}
 
-	rpy_t ang_vel;
-	ang_vel.roll = gyro.gyroADCf[FD_ROLL];
-	ang_vel.pitch = gyro.gyroADCf[FD_PITCH];
-	ang_vel.yaw = gyro.gyroADCf[FD_YAW];
 
-	rpy_t error;
-	error.roll = getSetpointRate(FD_ROLL) - ang_vel.roll;
-	error.pitch = getSetpointRate(FD_PITCH) - ang_vel.pitch;
-	error.yaw = getSetpointRate(FD_YAW) - ang_vel.yaw;
-
-
-	rpy_t ang_acc;
-	ang_acc.roll = ang_vel.roll - previousState[FD_ROLL];
-	ang_acc.pitch = ang_vel.pitch - previousState[FD_PITCH];
-	ang_acc.yaw = ang_vel.yaw - previousState[FD_YAW];
-	action_t prev_action;
-	prev_action.top_left = previousOutput[0];
-	prev_action.top_right = previousOutput[1];
-	prev_action.bottom_left = previousOutput[2];
-	prev_action.bottom_right = previousOutput[3];
-
-	observation_t obs = {
-		.error = error,
-		.ang_vel = ang_vel,
-		.ang_acc = ang_acc,
-		.prev_action = prev_action,
-		.delta_micros = currentTimeUs - previousTime,
-		// .delta_micros = infer_time,
-		.iter = 0
-	};
-	if(trans_state == SENDING_OBS)
-		traj_transmission_handler(obs);
 
 	//Evaluate the neural network graph and convert to range [-1,1]->[0,1]
 	infer(graphInput, GRAPH_INPUT_SIZE, graphOutput, memory_trick(), GRAPH_OUTPUT_SIZE);
@@ -223,6 +228,7 @@ crc_t block_crc() {
 	return compute_crc(block_ptr(), block_size());
 }
 
+bool was_armed = true;
 
 void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
 	static int i = 0;
@@ -236,6 +242,11 @@ void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
 		serialWrite(getUART4(), 'a');
 		delay(500);
 	} else {
+		bool is_armed = ARMING_FLAG(ARMED);
+		if(!was_armed && is_armed)
+			reset_trajectory();
+
+		was_armed = is_armed;
 		if((trans_state == WAIT_FOR_COMMAND || trans_state == RECEIVING_NN) && ((micros() - time_since_last_byte) > 500000)){
 			serialWrite(getUART4(), 0xdd);
 			serialWrite(getUART4(), 0xee);

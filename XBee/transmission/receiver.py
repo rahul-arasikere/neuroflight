@@ -6,60 +6,12 @@ import time
 import ctypes
 from crccheck.crc import Crc16Mcrf4XX
 import xbee
-
-
-class MyStructure(ctypes.Structure):
-    def __repr__(self) -> str:
-        values = ", ".join(f"{name}={value}"
-            for name, value in self._asdict().items())
-        return f"<{self.__class__.__name__}: {values}>"
-    def _asdict(self) -> dict:
-        return {field[0]: getattr(self, field[0])
-            for field in self._fields_}
-
-
-class rpy_t (MyStructure):
-    _pack_ = 1
-    _fields_ = [
-        ("roll", ctypes.c_float),     #4B
-        ("pitch", ctypes.c_float),    #4B
-        ("yaw", ctypes.c_float)       #4B
-    ]
-    
-class action_t (MyStructure):
-    _pack_ = 1
-    _fields_ = [
-        ("top_left", ctypes.c_float),     #4B
-        ("top_right", ctypes.c_float),    #4B
-        ("bottom_left", ctypes.c_float),  #4B
-        ("bottom_right", ctypes.c_float),  #4B
-    ]
-
-class observation_t (MyStructure):
-    _pack_ = 1
-    _fields_ = [
-        ("error",   rpy_t),                   #12B
-        ("ang_vel", rpy_t),                   #12B 
-        ("ang_acc", rpy_t),                   #12B 
-        ("prev_action", action_t),            #16B     
-        ("iter", ctypes.c_uint16),            #16B 
-        ("delta_micros", ctypes.c_uint16)     #16B 
-]   
-    
-class checked_observation_t (MyStructure):
-    _pack_ = 1
-    _fields_ = [
-        ("observation", observation_t),
-        ("crc", ctypes.c_uint16)
-]   
-
+import obs_utils
 
 
 def block_crc(block):
     crc = Crc16Mcrf4XX().calc(block)
     return ctypes.c_uint16(crc)
-
-
 
 
 def keep_receiving(
@@ -74,7 +26,7 @@ def keep_receiving(
         debug=True
     ):
 
-    checked_observation = checked_observation_t()
+    checked_observation = obs_utils.checked_observation_t()
     while True:
         loop_num += 1
         begin = time.time()
@@ -120,7 +72,7 @@ def keep_receiving(
 
             
 def receive_obs(ser, check, keep_checking=False, debug=True):
-    checked_observation = checked_observation_t()
+    checked_observation = obs_utils.checked_observation_t()
     if check:
         while True:
             sync_byte = ser.read(1)
