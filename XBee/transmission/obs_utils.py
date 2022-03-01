@@ -129,15 +129,15 @@ def convert_traj_to_flight_log(traj, save_location):
     print("saving to:", save_location)
     flight_log = FlightLog(save_location)
     for ob, ac in traj:
-        rw = rewards_fn(ob,ac)
-        ang_vel = obs_utils.unroll_rpy(obs.ang_vel)
-        target = ang_vel - obs_utils.unroll_rpy(obs.error)
-        flight_log.add(obs_utils.unroll_obs(ob), 
+        rw = rewards_fn(ob,ac).numpy()
+        ang_vel = unroll_rpy(ob.ang_vel)
+        target = ang_vel - unroll_rpy(ob.error)
+        flight_log.add(unroll_obs(ob), 
                        rw, 
                        {"closeness": rw},
                        #ac,
                        unroll_act(ac)*0.5+0.5,
                        ang_vel, 
                        target,
-                       1.0)
+                       np.array([1.0]))
     flight_log.save(0, unroll_obs(ob).shape[0])

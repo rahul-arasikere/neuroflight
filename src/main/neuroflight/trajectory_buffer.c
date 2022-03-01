@@ -11,7 +11,7 @@ void write_float(float x);
 void write_checked_observation(checked_observation_t obs);
 checked_observation_t with_crc(observation_t obs);
 
-#define TRAJ_SIZE 100
+#define TRAJ_SIZE 500
 observation_t trajectory[TRAJ_SIZE];
 uint16_t traj_size = 0;
 

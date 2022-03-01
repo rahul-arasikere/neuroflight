@@ -5,7 +5,7 @@ import serial
 from threading import Thread
 import xbee
 import datetime
-from live_ddpg import live_ddpg
+from anchor_live_ddpg import live_ddpg
 import copy
 from gym import spaces
 import numpy as np
@@ -44,7 +44,7 @@ def live_training(nn_queue, obs_queue):
         action_space,
         actor_critic=existing_actor_critic,
         on_save=on_save,
-        # anchor_q=tf.keras.models.load_model("critic")
+        anchor_q=tf.keras.models.load_model("critic")
     )
 
 # def unimportant_obs_filter(obs1, obs2):
@@ -61,8 +61,9 @@ def tranceive(ser, nn_queue, obs_queue, circular_buffer_size=2000):
             check, obs = receiver.receive_obs(ser, check,keep_checking=True, debug=False)
             if next_obs:
                 if obs.iter + 1 == next_obs.iter: # trajectories are reversed
-                    current_traj.append(obs)
-                    obs_queue.put((obs, next_obs.prev_action, copy.deepcopy(next_obs)))
+                    copied_next_obs=copy.deepcopy(next_obs)
+                    current_traj.append((obs, copied_next_obs.prev_action))
+                    obs_queue.put((obs, copied_next_obs.prev_action, copied_next_obs))
                     if obs_queue.qsize() > circular_buffer_size:
                         obs_queue.get()
                 else:

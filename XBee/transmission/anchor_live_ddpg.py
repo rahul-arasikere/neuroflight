@@ -197,8 +197,12 @@ def live_ddpg(obs_queue, obs_space, act_space, hp: HyperParams=HyperParams(),act
         with tf.GradientTape() as tape:
             pi = pi_network(obs1)
             pi2 = pi_network(obs2)
-            anchor_pi = pi_network(anchor_obs1)
-            q_c = tf.reduce_mean(tf.squeeze(q_network(tf.concat([anchor_obs1, anchor_pi], axis=-1)), axis=-1)**2.0)**0.5
+            q_pi = tf.reduce_mean(tf.squeeze(q_network(tf.concat([obs1, pi], axis=-1)), axis=-1)**2.0)**0.5
+            if anchor_q:
+                anchor_pi = pi_network(anchor_obs1)
+                anchor_c=tf.reduce_mean(tf.squeeze(anchor_q(tf.concat([anchor_obs1, anchor_pi], axis=-1)), axis=-1)**2.0)**0.5
+                q_c = tf.squeeze(obs_utils.p_mean(tf.stack([q_pi, anchor_c]), 0.0))
+
 
             noise = tf.random.normal(
                 [13], mean=0.0, stddev=np.array([
@@ -224,7 +228,7 @@ def live_ddpg(obs_queue, obs_space, act_space, hp: HyperParams=HyperParams(),act
             # tf.print("r",reg_c)
             # tf.print("q",q_c)
             # # tf.print("")
-            all_c = obs_utils.p_to_min(tf.stack([q_c**0.5,reg_c**2.0]))
+            all_c = obs_utils.p_to_min(tf.stack([q_c**0.4,reg_c**2.0]))
             # combined_c = q_c - reg - reg_c*1e-3
             # combined_c = q_c - center_c*3e-5 - action_c*1e-7 -reg*0.1
             # tf.print("w", weaken(reg_c,4.0))
@@ -269,8 +273,8 @@ def live_ddpg(obs_queue, obs_space, act_space, hp: HyperParams=HyperParams(),act
                 rews = tf.constant(batch['rews'])
                 dones = tf.constant(batch['done'])
                 # Q-learning update
-                # loss_q, q_vals = q_update(obs1, obs2, acts, rews, dones)
-                # logger.store(LossQ=loss_q)
+                loss_q, q_vals = q_update(obs1, obs2, acts, rews, dones)
+                logger.store(LossQ=loss_q)
 
                 # Policy update
                 pi_loss, avoid_extremes, qs, safe_qs, reg = pi_update(obs1, obs2, anchor_obs)
@@ -297,7 +301,7 @@ def live_ddpg(obs_queue, obs_space, act_space, hp: HyperParams=HyperParams(),act
             # logger.log_tabular('TestEpLen', average_only=True)
             logger.log_tabular('TotalEnvInteracts', t)
             logger.log_tabular('LossPi', average_only=True)
-            # logger.log_tabular('LossQ', average_only=True)
+            logger.log_tabular('LossQ', average_only=True)
             logger.log_tabular('NormQ', average_only=True)
             logger.log_tabular('NormSafe', average_only=True)
             logger.log_tabular('AvoidExtremes', average_only=True)
