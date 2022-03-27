@@ -51,7 +51,7 @@ COMMON_SRC = \
             drivers/transponder_ir_erlt.c \
             fc/config.c \
             fc/fc_dispatch.c \
-            fc/fc_hardfaults.c \
+            fc/fc_fault_handlers.c \
             fc/fc_tasks.c \
             fc/runtime_config.c \
             interface/msp.c \
