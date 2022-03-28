@@ -154,6 +154,9 @@
 #define USE_ESCSERIAL
 #define USE_SERIAL_4WAY_BLHELI_INTERFACE
 
+#define DEBUG_ALL_FAULTS        1
+#define DEBUG_FAULT_UART        SERIAL_PORT_USART3
+
 #define TARGET_IO_PORTA         0xffff
 #define TARGET_IO_PORTB         0xffff
 #define TARGET_IO_PORTC         0xffff
