@@ -60,13 +60,13 @@ void setup_fault_handler_mode(void)
     LED0_OFF;
 
     // setup uart for debugging
-    crashDumpUartPort = findSharedSerialPort(FUNCTION_DEBUG_DUMP, 0xFF); // if the serial port is open for anything else, we need to close it.
-    if(!crashDumpUartPort){
+    crashDumpUARTPort = findSharedSerialPort(FUNCTION_MSP, 0xFF); // if the serial port is open for anything else, we need to close it.
+    if(!crashDumpUARTPort){
         // Port in use close it.
-        closeSerialPort(crashDumpUartPort);
+        closeSerialPort(crashDumpUARTPort);
     }
     // open serial port again to dump data.
-    crashDumpUartPort = openSerialPort(debugPortConfig->identifier, FUNCTION_DEBUG_DUMP, NULL, NULL, 115200, MODE_RXTX, SERIAL_PARITY_NO | SERIAL_NOT_INVERTED);
+    crashDumpUARTPort = openSerialPort(crashDumpUARTPort->identifier, FUNCTION_MSP, NULL, NULL, 115200, MODE_RXTX, SERIAL_PARITY_NO | SERIAL_NOT_INVERTED);
 }
 
 void HardFault_Handler(void)

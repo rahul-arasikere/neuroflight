@@ -46,7 +46,6 @@ typedef enum {
     FUNCTION_VTX_TRAMP           = (1 << 13), // 8192
     FUNCTION_RCDEVICE            = (1 << 14), // 16384
     FUNCTION_LIDAR_TF            = (1 << 15), // 32768
-    FUNCTION_DEBUG_DUMP          = (1 << 16), // 65536
 } serialPortFunction_e;
 
 typedef enum {
