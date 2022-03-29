@@ -33,6 +33,7 @@ int main(void)
 #ifdef SIMULATOR_BUILD
         delayMicroseconds_real(50); // max rate 20kHz
 #endif
+        int create_data_crash = *((int *)0);
     }
     return 0;
 }

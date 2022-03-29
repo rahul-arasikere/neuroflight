@@ -84,14 +84,16 @@ void setup_fault_handler_mode(void)
     crashDumpUARTPort = openSerialPort(crashDumpUARTPort->identifier, FUNCTION_MSP, NULL, NULL, 115200, MODE_RXTX, SERIAL_PARITY_NO | SERIAL_NOT_INVERTED);
 }
 
+__attribute__((optimize("O0")))
 void HardFault_Handler_c(crashStackContext_t *ctxt)
 {
     setup_fault_handler_mode();
     snprintf(uartBuf, 128, "fault handler: %s\n", __func__);
     while (1)
-        ;
+        serialWriteBuf(crashDumpUARTPort, uartBuf, strlen(uartBuf));
 }
 
+__attribute__((optimize("O0")))
 void MemManage_Handler_c(crashStackContext_t *ctxt)
 {
 
@@ -101,6 +103,7 @@ void MemManage_Handler_c(crashStackContext_t *ctxt)
         ;
 }
 
+__attribute__((optimize("O0")))
 void BusFault_Handler_c(crashStackContext_t *ctxt)
 {
 
@@ -110,6 +113,7 @@ void BusFault_Handler_c(crashStackContext_t *ctxt)
         ;
 }
 
+__attribute__((optimize("O0")))
 void UsageFault_Handler_c(crashStackContext_t *ctxt)
 {
 
