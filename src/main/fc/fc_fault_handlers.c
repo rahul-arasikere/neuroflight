@@ -17,6 +17,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include "platform.h"
 
@@ -32,7 +33,20 @@
 
 #ifdef DEBUG_ALL_FAULTS
 
+typedef struct PG_PACKED crashStackContext
+{
+    uint32_t r0;
+    uint32_t r1;
+    uint32_t r2;
+    uint32_t r3;
+    uint32_t r12;
+    uint32_t lr;
+    uint32_t return_address;
+    uint32_t xpsr;
+} crashStackContext_t;
+
 static serialPort_t *crashDumpUARTPort = NULL;
+static char uartBuf[128];
 
 void setup_fault_handler_mode(void)
 {
@@ -60,8 +74,9 @@ void setup_fault_handler_mode(void)
     LED0_OFF;
 
     // setup uart for debugging
-    crashDumpUARTPort = findSharedSerialPort(FUNCTION_MSP, 0xFF); // if the serial port is open for anything else, we need to close it.
-    if(!crashDumpUARTPort){
+    crashDumpUARTPort = findSharedSerialPort(FUNCTION_MSP, ~0); // if the serial port is open for anything else, we need to close it.
+    if (!crashDumpUARTPort)
+    {
         // Port in use close it.
         closeSerialPort(crashDumpUARTPort);
     }
@@ -69,24 +84,39 @@ void setup_fault_handler_mode(void)
     crashDumpUARTPort = openSerialPort(crashDumpUARTPort->identifier, FUNCTION_MSP, NULL, NULL, 115200, MODE_RXTX, SERIAL_PARITY_NO | SERIAL_NOT_INVERTED);
 }
 
-void HardFault_Handler(void)
+void HardFault_Handler_c(crashStackContext_t *ctxt)
 {
     setup_fault_handler_mode();
+    snprintf(uartBuf, 128, "fault handler: %s\n", __func__);
+    while (1)
+        ;
 }
 
-void MemManage_Handler(void)
+void MemManage_Handler_c(crashStackContext_t *ctxt)
 {
+
     setup_fault_handler_mode();
+    snprintf(uartBuf, 128, "fault handler: %s\n", __func__);
+    while (1)
+        ;
 }
 
-void BusFault_Handler(void)
+void BusFault_Handler_c(crashStackContext_t *ctxt)
 {
+
     setup_fault_handler_mode();
+    snprintf(uartBuf, 128, "fault handler: %s\n", __func__);
+    while (1)
+        ;
 }
 
-void UsageFault_Handler(void)
+void UsageFault_Handler_c(crashStackContext_t *ctxt)
 {
+
     setup_fault_handler_mode();
+    snprintf(uartBuf, 128, "fault handler: %s\n", __func__);
+    while (1)
+        ;
 }
 
 #else
