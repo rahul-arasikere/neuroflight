@@ -92,8 +92,8 @@ void secondary_fault_handler(crashStackContext_t *ctxt)
     _MMAR = (*((volatile unsigned long *)(0xE000ED34)));
     // Bus Fault Address Register
     _BFAR = (*((volatile unsigned long *)(0xE000ED38)));
-    UART_HandleTypeDef huart3;
-    GPIO_InitTypeDef huart3_pin_config;
+    UART_HandleTypeDef huart;
+    GPIO_InitTypeDef huart_pin_config;
     char buffer[128];
     size_t len = 0;
     LED2_OFF;
@@ -101,25 +101,25 @@ void secondary_fault_handler(crashStackContext_t *ctxt)
     LED0_ON; /*errored out*/
     delay_dumb(1000);
 
-    huart3_pin_config.Pin = GPIO_PIN_10 | GPIO_PIN_11;
-    huart3_pin_config.Mode = GPIO_MODE_AF_PP;
-    huart3_pin_config.Pull = GPIO_NOPULL;
-    huart3_pin_config.Speed = GPIO_SPEED_FREQ_LOW;
-    huart3_pin_config.Alternate = GPIO_AF7_USART3;
-    HAL_GPIO_Init(GPIOC, &huart3_pin_config);
+    huart_pin_config.Pin = GPIO_PIN_0 | GPIO_PIN_1;
+    huart_pin_config.Mode = GPIO_MODE_AF_PP;
+    huart_pin_config.Pull = GPIO_NOPULL;
+    huart_pin_config.Speed = GPIO_SPEED_FREQ_LOW;
+    huart_pin_config.Alternate = GPIO_AF7_USART4;
+    HAL_GPIO_Init(GPIOA, &huart_pin_config);
 
-    huart3.Instance = USART3;
-    huart3.Init.BaudRate = 115200;
-    huart3.Init.WordLength = UART_WORDLENGTH_8B;
-    huart3.Init.StopBits = UART_STOPBITS_1;
-    huart3.Init.Parity = UART_PARITY_NONE;
-    huart3.Init.Mode = UART_MODE_TX_RX;
-    huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-    huart3.Init.OverSampling = UART_OVERSAMPLING_16;
-    huart3.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
-    huart3.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-    HAL_UART_DeInit(&huart3);
-    if (HAL_UART_Init(&huart3) != HAL_OK)
+    huart.Instance = USART4;
+    huart.Init.BaudRate = 115200;
+    huart.Init.WordLength = UART_WORDLENGTH_8B;
+    huart.Init.StopBits = UART_STOPBITS_1;
+    huart.Init.Parity = UART_PARITY_NONE;
+    huart.Init.Mode = UART_MODE_TX_RX;
+    huart.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+    huart.Init.OverSampling = UART_OVERSAMPLING_16;
+    huart.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+    huart.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+    HAL_UART_DeInit(&huart);
+    if (HAL_UART_Init(&huart) != HAL_OK)
     {
         LED0_ON;
         while (1)
@@ -131,36 +131,36 @@ void secondary_fault_handler(crashStackContext_t *ctxt)
     {
         LED0_ON;
         delay_dumb(100);
-        HAL_UART_Transmit(&huart3, (uint8_t *)"-----------------------------------------------------\r\n", 56, 500);
-        HAL_UART_Transmit(&huart3, (uint8_t *)"fault handler\r\n", 19, 500);
+        HAL_UART_Transmit(&huart, (uint8_t *)"-----------------------------------------------------\r\n", 56, 500);
+        HAL_UART_Transmit(&huart, (uint8_t *)"fault handler\r\n", 19, 500);
         len = snprintf(buffer, 128, "lr: 0x%08x\r\n", ctxt->lr);
-        HAL_UART_Transmit(&huart3, (uint8_t *)buffer, len, 500);
+        HAL_UART_Transmit(&huart, (uint8_t *)buffer, len, 500);
         len = snprintf(buffer, 128, "r0: 0x%08x\r\n", ctxt->r0);
-        HAL_UART_Transmit(&huart3, (uint8_t *)buffer, len, 500);
+        HAL_UART_Transmit(&huart, (uint8_t *)buffer, len, 500);
         len = snprintf(buffer, 128, "r1: 0x%08x\r\n", ctxt->r1);
-        HAL_UART_Transmit(&huart3, (uint8_t *)buffer, len, 500);
+        HAL_UART_Transmit(&huart, (uint8_t *)buffer, len, 500);
         len = snprintf(buffer, 128, "r2: 0x%08x\r\n", ctxt->r2);
-        HAL_UART_Transmit(&huart3, (uint8_t *)buffer, len, 500);
+        HAL_UART_Transmit(&huart, (uint8_t *)buffer, len, 500);
         len = snprintf(buffer, 128, "r3: 0x%08x\r\n", ctxt->r3);
-        HAL_UART_Transmit(&huart3, (uint8_t *)buffer, len, 500);
+        HAL_UART_Transmit(&huart, (uint8_t *)buffer, len, 500);
         len = snprintf(buffer, 128, "r12: 0x%08x\r\n", ctxt->r12);
-        HAL_UART_Transmit(&huart3, (uint8_t *)buffer, len, 500);
+        HAL_UART_Transmit(&huart, (uint8_t *)buffer, len, 500);
         len = snprintf(buffer, 128, "ret addr: 0x%08x\r\n", ctxt->return_address);
-        HAL_UART_Transmit(&huart3, (uint8_t *)buffer, len, 500);
+        HAL_UART_Transmit(&huart, (uint8_t *)buffer, len, 500);
         len = snprintf(buffer, 128, "xpsr: 0x%08x\r\n", ctxt->xpsr);
-        HAL_UART_Transmit(&huart3, (uint8_t *)buffer, len, 500);
+        HAL_UART_Transmit(&huart, (uint8_t *)buffer, len, 500);
         len = snprintf(buffer, 128, "cfsr: 0x%08x\r\n", _CFSR);
-        HAL_UART_Transmit(&huart3, (uint8_t *)buffer, len, 500);
+        HAL_UART_Transmit(&huart, (uint8_t *)buffer, len, 500);
         len = snprintf(buffer, 128, "hfsr: 0x%08x\r\n", _HFSR);
-        HAL_UART_Transmit(&huart3, (uint8_t *)buffer, len, 500);
+        HAL_UART_Transmit(&huart, (uint8_t *)buffer, len, 500);
         len = snprintf(buffer, 128, "dfsr: 0x%08x\r\n", _DFSR);
-        HAL_UART_Transmit(&huart3, (uint8_t *)buffer, len, 500);
+        HAL_UART_Transmit(&huart, (uint8_t *)buffer, len, 500);
         len = snprintf(buffer, 128, "afsr: 0x%08x\r\n", _AFSR);
-        HAL_UART_Transmit(&huart3, (uint8_t *)buffer, len, 500);
+        HAL_UART_Transmit(&huart, (uint8_t *)buffer, len, 500);
         len = snprintf(buffer, 128, "mmar: 0x%08x\r\n", _MMAR);
-        HAL_UART_Transmit(&huart3, (uint8_t *)buffer, len, 500);
+        HAL_UART_Transmit(&huart, (uint8_t *)buffer, len, 500);
         len = snprintf(buffer, 128, "bfar: 0x%08x\r\n", _BFAR);
-        HAL_UART_Transmit(&huart3, (uint8_t *)buffer, len, 500);
+        HAL_UART_Transmit(&huart, (uint8_t *)buffer, len, 500);
         LED0_OFF;
         delay_dumb(100);
     }
