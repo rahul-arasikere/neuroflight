@@ -51,16 +51,6 @@
 .global  g_pfnVectors
 .global  Default_Handler
 
-.global HardFault_Handler
-.extern HardFault_Handler_c
-.global MemManage_Handler
-.extern MemManage_Handler_c
-.global BusFault_Handler
-.extern BusFault_Handler_c
-.global UsageFault_Handler
-.extern UsageFault_Handler_c
-
-
 /* start address for the initialization values of the .data section. 
 defined in linker script */
 .word  _sidata
@@ -126,83 +116,6 @@ LoopFillZerobss:
   bx  lr    
 .size  Reset_Handler, .-Reset_Handler
 
-.section  .text.HardFault_Handler
-.weak  HardFault_Handler
-.type  HardFault_Handler, %function
-HardFault_Handler:
-  movs r0,#4
-  movs r1, lr
-  tst r0, r1
-  beq _HardFault_MSP
-  mrs r0, psp
-  b _HardFault_HALT
-_HardFault_MSP:
-  mrs r0, msp
-_HardFault_HALT:
-  ldr r1,[r0,#20]
-  b HardFault_Handler_c
-  bkpt #0
-
-.size  HardFault_Handler, .-HardFault_Handler
-
-.section  .text.MemManage_Handler
-.weak  MemManage_Handler
-.type  MemManage_Handler, %function
-MemManage_Handler:
-  movs r0,#4
-  movs r1, lr
-  tst r0, r1
-  beq _MemManage_MSP
-  mrs r0, psp
-  b _MemManage_HALT
-_MemManage_MSP:
-  mrs r0, msp
-_MemManage_HALT:
-  ldr r1,[r0,#20]
-  b MemManage_Handler_c
-  bkpt #0
-
-.size  MemManage_Handler, .-MemManage_Handler
-
-.section  .text.BusFault_Handler
-.weak  BusFault_Handler
-.type  BusFault_Handler, %function
-BusFault_Handler:
-  movs r0,#4
-  movs r1, lr
-  tst r0, r1
-  beq _BusFault_MSP
-  mrs r0, psp
-  b _BusFault_HALT
-_BusFault_MSP:
-  mrs r0, msp
-_BusFault_HALT:
-  ldr r1,[r0,#20]
-  b BusFault_Handler_c
-  bkpt #0
-
-.size  BusFault_Handler, .-BusFault_Handler
-
-.section  .text.UsageFault_Handler
-.weak  UsageFault_Handler
-.type  UsageFault_Handler, %function
-UsageFault_Handler:
-  movs r0,#4
-  movs r1, lr
-  tst r0, r1
-  beq _UsageFault_MSP
-  mrs r0, psp
-  b _UsageFault_HALT
-_UsageFault_MSP:
-  mrs r0, msp
-_UsageFault_HALT:
-  ldr r1,[r0,#20]
-  b UsageFault_Handler_c
-  bkpt #0
-
-.size  UsageFault_Handler, .-UsageFault_Handler
-
-
 /**
  * @brief  This is the code that gets called when the processor receives an 
  *         unexpected interrupt.  This simply enters an infinite loop, preserving
@@ -213,6 +126,12 @@ _UsageFault_HALT:
     .section  .text.Default_Handler,"ax",%progbits
 Default_Handler:
 Infinite_Loop:
+  tst lr, #4
+  ite eq
+  mrseq r0, msp
+  mrsne r0, psp
+  ldr r1, [r0, #24]
+  bl secondary_fault_handler
   b  Infinite_Loop
   .size  Default_Handler, .-Default_Handler
 /******************************************************************************

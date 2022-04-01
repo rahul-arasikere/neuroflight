@@ -25,11 +25,11 @@ OPTIONS   ?=
 OPBL      ?= no
 
 # Debugger optons, must be empty or GDB
-DEBUG     ?=
-
+DEBUG     ?= 
+DEBUG_FLAGS ?= -g
 # Insert the debugging hardfault debugger
 # releases should not be built with this flag as it does not disable pwm output
-DEBUG_HARDFAULTS ?=
+DEBUG_HARDFAULTS ?= yes
 
 # Serial port/Device for flashing
 SERIAL_DEVICE   ?= $(firstword $(wildcard /dev/ttyUSB*) no-port-found)

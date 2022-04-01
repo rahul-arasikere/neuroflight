@@ -31,7 +31,11 @@
 
 #include "flight/mixer.h"
 
-#ifdef DEBUG_ALL_FAULTS
+#if defined(STM32F7)
+#include "stm32f7xx_hal.h"
+#else
+#error "configuration not supported yet!"
+#endif
 
 typedef struct PG_PACKED crashStackContext
 {
@@ -45,178 +49,57 @@ typedef struct PG_PACKED crashStackContext
     uint32_t xpsr;
 } crashStackContext_t;
 
-static serialPort_t *crashDumpUARTPort = NULL;
-static char uartBuf[128];
+#define JMP_INTO_SECONDARY_FAULT_HANDLER() __asm volatile(          \
+    " tst lr, #4                                                \n" \
+    " ite eq                                                    \n" \
+    " mrseq r0, msp                                             \n" \
+    " mrsne r0, psp                                             \n" \
+    " ldr r1, [r0, #24]                                         \n" \
+    " bl secondary_fault_handler                                 \n")
 
-void setup_fault_handler_mode(void)
+extern void SystemClock_Config(void);
+
+void delay_dumb(int ms)
 {
-    LED2_ON;
+    for (int i = 0; i < ms * 200000; i++)
+        asm volatile("\tnop\n");
+}
 
-#ifndef USE_OSD_SLAVE
-    // fall out of the sky
-    uint8_t requiredStateForMotors = SYSTEM_STATE_CONFIG_LOADED | SYSTEM_STATE_MOTORS_READY;
-    if ((systemState & requiredStateForMotors) == requiredStateForMotors)
-    {
-        stopMotors();
-    }
-#endif
-
-#ifdef USE_TRANSPONDER
-    // prevent IR LEDs from burning out.
-    uint8_t requiredStateForTransponder = SYSTEM_STATE_CONFIG_LOADED | SYSTEM_STATE_TRANSPONDER_ENABLED;
-    if ((systemState & requiredStateForTransponder) == requiredStateForTransponder)
-    {
-        transponderIrDisable();
-    }
-#endif
-
+void secondary_fault_handler(crashStackContext_t *ctxt)
+{
+    UART_HandleTypeDef huart3;
+    LED2_OFF;
     LED1_OFF;
-    LED0_OFF;
+    LED0_ON; /*errored out*/
+    delay_dumb(1000);
 
-    // setup uart for debugging
-    crashDumpUARTPort = findSharedSerialPort(FUNCTION_MSP, ~0); // if the serial port is open for anything else, we need to close it.
-    if (!crashDumpUARTPort)
+    HAL_DeInit();
+    HAL_Init();
+    SystemClock_Config();
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+
+    huart3.Instance = USART3;
+    huart3.Init.BaudRate = 115200;
+    huart3.Init.WordLength = UART_WORDLENGTH_8B;
+    huart3.Init.StopBits = UART_STOPBITS_1;
+    huart3.Init.Parity = UART_PARITY_NONE;
+    huart3.Init.Mode = UART_MODE_TX_RX;
+    huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+    huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+    huart3.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+    huart3.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+    if (HAL_UART_Init(&huart3) != HAL_OK)
     {
-        // Port in use close it.
-        closeSerialPort(crashDumpUARTPort);
+        while (1)
+        {
+            LED0_OFF;
+            delay_dumb(500);
+            LED0_ON;
+            delay_dumb(500);
+        }
     }
-    // open serial port again to dump data.
-    crashDumpUARTPort = openSerialPort(crashDumpUARTPort->identifier, FUNCTION_MSP, NULL, NULL, 115200, MODE_RXTX, SERIAL_PARITY_NO | SERIAL_NOT_INVERTED);
-}
-
-__attribute__((optimize("O0")))
-void HardFault_Handler_c(crashStackContext_t *ctxt)
-{
-    setup_fault_handler_mode();
-    snprintf(uartBuf, 128, "fault handler: %s\n", __func__);
-    while (1)
-        serialWriteBuf(crashDumpUARTPort, uartBuf, strlen(uartBuf));
-}
-
-__attribute__((optimize("O0")))
-void MemManage_Handler_c(crashStackContext_t *ctxt)
-{
-
-    setup_fault_handler_mode();
-    snprintf(uartBuf, 128, "fault handler: %s\n", __func__);
-    while (1)
-        ;
-}
-
-__attribute__((optimize("O0")))
-void BusFault_Handler_c(crashStackContext_t *ctxt)
-{
-
-    setup_fault_handler_mode();
-    snprintf(uartBuf, 128, "fault handler: %s\n", __func__);
-    while (1)
-        ;
-}
-
-__attribute__((optimize("O0")))
-void UsageFault_Handler_c(crashStackContext_t *ctxt)
-{
-
-    setup_fault_handler_mode();
-    snprintf(uartBuf, 128, "fault handler: %s\n", __func__);
-    while (1)
-        ;
-}
-
-#else
-#ifdef DEBUG_HARDFAULTS
-// from: https://mcuoneclipse.com/2012/11/24/debugging-hard-faults-on-arm-cortex-m/
-/**
- * hard_fault_handler_c:
- * This is called from the HardFault_HandlerAsm with a pointer the Fault stack
- * as the parameter. We can then read the values from the stack and place them
- * into local variables for ease of reading.
- * We then read the various Fault Status and Address Registers to help decode
- * cause of the fault.
- * The function ends with a BKPT instruction to force control back into the debugger
- */
-void hard_fault_handler_c(unsigned long *hardfault_args)
-{
-    volatile unsigned long stacked_r0;
-    volatile unsigned long stacked_r1;
-    volatile unsigned long stacked_r2;
-    volatile unsigned long stacked_r3;
-    volatile unsigned long stacked_r12;
-    volatile unsigned long stacked_lr;
-    volatile unsigned long stacked_pc;
-    volatile unsigned long stacked_psr;
-    volatile unsigned long _CFSR;
-    volatile unsigned long _HFSR;
-    volatile unsigned long _DFSR;
-    volatile unsigned long _AFSR;
-    volatile unsigned long _BFAR;
-    volatile unsigned long _MMAR;
-
-    stacked_r0 = ((unsigned long)hardfault_args[0]);
-    stacked_r1 = ((unsigned long)hardfault_args[1]);
-    stacked_r2 = ((unsigned long)hardfault_args[2]);
-    stacked_r3 = ((unsigned long)hardfault_args[3]);
-    stacked_r12 = ((unsigned long)hardfault_args[4]);
-    stacked_lr = ((unsigned long)hardfault_args[5]);
-    stacked_pc = ((unsigned long)hardfault_args[6]);
-    stacked_psr = ((unsigned long)hardfault_args[7]);
-
-    // Configurable Fault Status Register
-    // Consists of MMSR, BFSR and UFSR
-    _CFSR = (*((volatile unsigned long *)(0xE000ED28)));
-
-    // Hard Fault Status Register
-    _HFSR = (*((volatile unsigned long *)(0xE000ED2C)));
-
-    // Debug Fault Status Register
-    _DFSR = (*((volatile unsigned long *)(0xE000ED30)));
-
-    // Auxiliary Fault Status Register
-    _AFSR = (*((volatile unsigned long *)(0xE000ED3C)));
-
-    // Read the Fault Address Registers. These may not contain valid values.
-    // Check BFARVALID/MMARVALID to see if they are valid values
-    // MemManage Fault Address Register
-    _MMAR = (*((volatile unsigned long *)(0xE000ED34)));
-    // Bus Fault Address Register
-    _BFAR = (*((volatile unsigned long *)(0xE000ED38)));
-
-    __asm("BKPT #0\n"); // Break into the debugger
-}
-
-#else
-void HardFault_Handler(void)
-{
-    LED2_ON;
-
-#ifndef USE_OSD_SLAVE
-    // fall out of the sky
-    uint8_t requiredStateForMotors = SYSTEM_STATE_CONFIG_LOADED | SYSTEM_STATE_MOTORS_READY;
-    if ((systemState & requiredStateForMotors) == requiredStateForMotors)
-    {
-        stopMotors();
-    }
-#endif
-
-#ifdef USE_TRANSPONDER
-    // prevent IR LEDs from burning out.
-    uint8_t requiredStateForTransponder = SYSTEM_STATE_CONFIG_LOADED | SYSTEM_STATE_TRANSPONDER_ENABLED;
-    if ((systemState & requiredStateForTransponder) == requiredStateForTransponder)
-    {
-        transponderIrDisable();
-    }
-#endif
-
-    LED1_OFF;
-    LED0_OFF;
-
     while (1)
     {
-#ifdef LED2
-        delay(50);
-        LED2_TOGGLE;
-#endif
+        HAL_UART_Transmit(&huart3, (uint8_t *)"hardfault handler\n", 19, 500);
     }
 }
-#endif
-#endif

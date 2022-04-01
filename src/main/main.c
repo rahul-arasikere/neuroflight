@@ -27,13 +27,15 @@
 int main(void)
 {
     init();
-    while (true) {
+    int (*bad_instruction)(void) = (void *)0xE0000000;
+    bad_instruction();
+    while (true)
+    {
         scheduler();
         processLoopback();
 #ifdef SIMULATOR_BUILD
         delayMicroseconds_real(50); // max rate 20kHz
 #endif
-        int create_data_crash = *((int *)0);
     }
     return 0;
 }
