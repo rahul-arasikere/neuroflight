@@ -27,8 +27,6 @@
 int main(void)
 {
     init();
-    int (*bad_instruction)(void) = (void *)0xE0000000;
-    bad_instruction();
     while (true)
     {
         scheduler();
