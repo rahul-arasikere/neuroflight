@@ -128,8 +128,12 @@ def rewards_fn(obs, act):
 def convert_traj_to_flight_log(traj, save_location):
     print("saving to:", save_location)
     flight_log = FlightLog(save_location)
+    last_ob = None
+    print(traj)
     for ob, ac in traj:
-        rw = rewards_fn(ob,ac).numpy()
+        last_ob = ob
+        print(last_ob)
+        rw = rewards_fn(ob,ac).numpy()[0]
         ang_vel = unroll_rpy(ob.ang_vel)
         target = ang_vel - unroll_rpy(ob.error)
         flight_log.add(unroll_obs(ob), 
@@ -139,5 +143,6 @@ def convert_traj_to_flight_log(traj, save_location):
                        unroll_act(ac)*0.5+0.5,
                        ang_vel, 
                        target,
-                       np.array([1.0]))
-    flight_log.save(0, unroll_obs(ob).shape[0])
+                       np.array([1.0,1.0,1.0,1.0]))
+    print(last_ob)
+    flight_log.save(0, unroll_obs(last_ob).shape[0])

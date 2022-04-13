@@ -67,6 +67,7 @@ def tranceive(ser, nn_queue, obs_queue, circular_buffer_size=2000):
                     if obs_queue.qsize() > circular_buffer_size:
                         obs_queue.get()
                 else:
+                    print(current_traj)
                     current_traj.reverse()
                     save_traj(current_traj)
                     current_traj = []

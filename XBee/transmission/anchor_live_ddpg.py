@@ -47,8 +47,8 @@ class HyperParams:
             replay_size=int(1e6),
             gamma=0.9,
             polyak=0.995,
-            pi_lr=3e-4,
-            q_lr=3e-4,
+            pi_lr=1e-4,
+            q_lr=1e-4,
             batch_size=300,
             train_every=50,
             train_steps=30,
@@ -193,7 +193,7 @@ def live_ddpg(obs_queue, obs_space, act_space, hp: HyperParams=HyperParams(),act
         return q_loss, q
 
     @tf.function
-    def pi_update(obs1, obs2, anchor_obs1):
+    def pi_update(obs1, obs2, anchor_obs1, debug=False):
         with tf.GradientTape() as tape:
             pi = pi_network(obs1)
             pi2 = pi_network(obs2)
@@ -201,7 +201,8 @@ def live_ddpg(obs_queue, obs_space, act_space, hp: HyperParams=HyperParams(),act
             if anchor_q:
                 anchor_pi = pi_network(anchor_obs1)
                 anchor_c=tf.reduce_mean(tf.squeeze(anchor_q(tf.concat([anchor_obs1, anchor_pi], axis=-1)), axis=-1)**2.0)**0.5
-                q_c = tf.squeeze(obs_utils.p_mean(tf.stack([q_pi, anchor_c]), 0.0))
+                # q_c = tf.squeeze(obs_utils.p_mean(tf.stack([anchor_c, obs_utils.weaken(q_pi,0.5)]), -1.0))
+                q_c = anchor_c
 
 
             noise = tf.random.normal(
@@ -221,14 +222,15 @@ def live_ddpg(obs_queue, obs_space, act_space, hp: HyperParams=HyperParams(),act
             pi_bar_c = obs_utils.p_mean(obs_utils.p_mean(1.0 - pi_bar_diffs, 1.0), 1.0)
             center_c = obs_utils.p_mean(obs_utils.p_mean(1.0 - tf.abs(pi+0.4)/1.5,1.0),1.0)
             # tf.print("q_c",q_c)
-            reg_c = tf.squeeze(obs_utils.p_mean(tf.stack([pi_diffs_c**1.5, pi_bar_c**0.5, center_c**0.8],axis=1), 0.0))
-            tf.print("pi_bar_c", pi_bar_c)
-            tf.print("pi_diffs_c", pi_diffs_c)
-            tf.print("center_c", center_c)
-            # tf.print("r",reg_c)
-            # tf.print("q",q_c)
+            reg_c = tf.squeeze(obs_utils.p_mean(tf.stack([pi_diffs_c**1.5, pi_bar_c**0.5, center_c**0.5],axis=1), 0.0))
+            if debug:
+                tf.print("pi_bar_c", pi_bar_c)
+                tf.print("pi_diffs_c", pi_diffs_c)
+                tf.print("center_c", center_c)
+                # tf.print("r",reg_c)
+                tf.print("q",q_c)
             # # tf.print("")
-            all_c = obs_utils.p_to_min(tf.stack([q_c**0.4,reg_c**2.0]))
+            all_c = obs_utils.p_to_min(tf.stack([q_c**0.5,reg_c**2.0]))
             # combined_c = q_c - reg - reg_c*1e-3
             # combined_c = q_c - center_c*3e-5 - action_c*1e-7 -reg*0.1
             # tf.print("w", weaken(reg_c,4.0))
@@ -263,7 +265,7 @@ def live_ddpg(obs_queue, obs_space, act_space, hp: HyperParams=HyperParams(),act
             Perform all DDPG updates at the end of the trajectory,
             in accordance with tuning done by TD3 paper authors.
             """
-            for _ in range(hp.train_steps):
+            for ts in range(hp.train_steps):
                 batch = replay_buffer.sample_batch(hp.batch_size)
                 anchor_obs_batch = anchor_replay.sample_batch(hp.batch_size)
                 anchor_obs = tf.constant(anchor_obs_batch['obs1'])
@@ -277,7 +279,7 @@ def live_ddpg(obs_queue, obs_space, act_space, hp: HyperParams=HyperParams(),act
                 logger.store(LossQ=loss_q)
 
                 # Policy update
-                pi_loss, avoid_extremes, qs, safe_qs, reg = pi_update(obs1, obs2, anchor_obs)
+                pi_loss, avoid_extremes, qs, safe_qs, reg = pi_update(obs1, obs2, anchor_obs, debug=ts%10==0)
                 logger.store(
                     LossPi=pi_loss.numpy(),
                     NormQ=qs,
