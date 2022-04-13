@@ -27,7 +27,8 @@
 int main(void)
 {
     init();
-    while (true) {
+    while (true)
+    {
         scheduler();
         processLoopback();
 #ifdef SIMULATOR_BUILD

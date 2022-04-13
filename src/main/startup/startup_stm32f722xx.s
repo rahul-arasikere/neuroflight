@@ -126,6 +126,12 @@ LoopFillZerobss:
     .section  .text.Default_Handler,"ax",%progbits
 Default_Handler:
 Infinite_Loop:
+  tst lr, #4
+  ite eq
+  mrseq r0, msp
+  mrsne r0, psp
+  ldr r1, [r0, #24]
+  bl secondary_fault_handler
   b  Infinite_Loop
   .size  Default_Handler, .-Default_Handler
 /******************************************************************************
