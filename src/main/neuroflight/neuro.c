@@ -97,8 +97,8 @@ void evaluateGraphWithErrorStateDeltaStateAct(timeUs_t currentTimeUs){
 		// .delta_micros = infer_time,
 		.iter = 0
 	};
-	if(trans_state == SENDING_OBS && ARMING_FLAG(ARMED))
-		traj_transmission_handler(obs);
+	// if(trans_state == SENDING_OBS && ARMING_FLAG(ARMED))
+	// 	traj_transmission_handler(obs);
 
 	//Prepare the neural network inputs
 	// Set the current error and deriviate
@@ -231,61 +231,11 @@ crc_t block_crc() {
 bool was_armed = true;
 
 void neuroController(timeUs_t currentTimeUs, const pidProfile_t *pidProfile){
-	static int i = 0;
 	static uint32_t time_since_last_byte = 0;
-	i++;
 	if(initFlag) {
 		neuroInit(pidProfile);
 		initFlag = false;
-		serialWrite(getUART4(), 'a');
-		serialWrite(getUART4(), 'a');
-		serialWrite(getUART4(), 'a');
-		delay(500);
 	} else {
-		bool is_armed = ARMING_FLAG(ARMED);
-		if(!was_armed && is_armed)
-			reset_trajectory();
-
-		was_armed = is_armed;
-		if((trans_state == WAIT_FOR_COMMAND || trans_state == RECEIVING_NN) && ((micros() - time_since_last_byte) > 500000)){
-			serialWrite(getUART4(), 0xdd);
-			serialWrite(getUART4(), 0xee);
-			serialWrite(getUART4(), 0xaa);
-			serialWrite(getUART4(), 0xdd);
-			trans_state = DEAD;
-			time_since_last_byte = micros();
-			buffer_size = 0;
-		}
-
-		uint32_t bytesWaiting;
-		while ((bytesWaiting = serialRxBytesWaiting(getUART4()))) {
-			time_since_last_byte = micros();
-			uint8_t read_byte = serialRead(getUART4());
-			if(trans_state == WAIT_FOR_COMMAND || trans_state == DEAD) {
-				if((int)'b' == read_byte) {
-					write_little_endian(block_size());
-					write_little_endian(block_crc());
-				} else if((int)'c' == read_byte) {
-					trans_state = SENDING_OBS;
-					reset_trajectory();
-					buffer_size = 0;
-				}
-
-				
-				continue;
-			}
-
-
-			trans_state = RECEIVING_NN;
-			add_to_buffer(read_byte);
-			if((buffer_size >= NUM_META_BYTES) && (block_size() == expected_block_size())) {
-
-				trans_state = WAIT_FOR_COMMAND;
-				if(block_crc() == expected_crc())
-					update_nn();
-			}
-		};
-
 		evaluateGraphWithErrorStateDeltaStateAct(currentTimeUs);
 		mixGraphOutput(currentTimeUs, controlOutput);
 	}
