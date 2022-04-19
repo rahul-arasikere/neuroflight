@@ -101,14 +101,14 @@ void secondary_fault_handler(crashStackContext_t *ctxt)
     LED0_ON; /*errored out*/
     delay_dumb(1000);
 
-    huart_pin_config.Pin = GPIO_PIN_0 | GPIO_PIN_1;
+    huart_pin_config.Pin = GPIO_PIN_10 | GPIO_PIN_11;
     huart_pin_config.Mode = GPIO_MODE_AF_PP;
     huart_pin_config.Pull = GPIO_NOPULL;
     huart_pin_config.Speed = GPIO_SPEED_FREQ_LOW;
-    huart_pin_config.Alternate = GPIO_AF8_UART4;
+    huart_pin_config.Alternate = GPIO_AF7_USART4;
     HAL_GPIO_Init(GPIOA, &huart_pin_config);
 
-    huart.Instance = UART4;
+    huart.Instance = USART3;
     huart.Init.BaudRate = 115200;
     huart.Init.WordLength = UART_WORDLENGTH_8B;
     huart.Init.StopBits = UART_STOPBITS_1;
