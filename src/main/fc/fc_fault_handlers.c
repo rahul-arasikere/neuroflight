@@ -67,12 +67,16 @@ void delay_dumb(int ms)
 
 void secondary_fault_handler(crashStackContext_t *ctxt)
 {
+    volatile unsigned long _CCR;
     volatile unsigned long _CFSR;
     volatile unsigned long _HFSR;
     volatile unsigned long _DFSR;
     volatile unsigned long _AFSR;
     volatile unsigned long _BFAR;
     volatile unsigned long _MMAR;
+
+    _CCR = (*((volatile unsigned long *)(0xE000ED14)));
+
     // Configurable Fault Status Register
     // Consists of MMSR, BFSR and UFSR
     _CFSR = (*((volatile unsigned long *)(0xE000ED28)));
@@ -105,8 +109,8 @@ void secondary_fault_handler(crashStackContext_t *ctxt)
     huart_pin_config.Mode = GPIO_MODE_AF_PP;
     huart_pin_config.Pull = GPIO_NOPULL;
     huart_pin_config.Speed = GPIO_SPEED_FREQ_LOW;
-    huart_pin_config.Alternate = GPIO_AF7_USART4;
-    HAL_GPIO_Init(GPIOA, &huart_pin_config);
+    huart_pin_config.Alternate = GPIO_AF7_USART3;
+    HAL_GPIO_Init(GPIOC, &huart_pin_config);
 
     huart.Instance = USART3;
     huart.Init.BaudRate = 115200;
@@ -160,6 +164,8 @@ void secondary_fault_handler(crashStackContext_t *ctxt)
         len = snprintf(buffer, 128, "mmar: 0x%08x\r\n", _MMAR);
         HAL_UART_Transmit(&huart, (uint8_t *)buffer, len, 500);
         len = snprintf(buffer, 128, "bfar: 0x%08x\r\n", _BFAR);
+        HAL_UART_Transmit(&huart, (uint8_t *)buffer, len, 500);
+        len = snprintf(buffer, 128, "ccr: 0x%08x\r\n", _CCR);
         HAL_UART_Transmit(&huart, (uint8_t *)buffer, len, 500);
         LED0_OFF;
         delay_dumb(100);

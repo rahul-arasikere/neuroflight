@@ -1,0 +1,6 @@
+[submodule "src/main/tflite-micro"]
+	path = src/main/tflite_micro
+	url = https://github.com/tensorflow/tflite-micro.git
+[submodule "src/main/flatbuffer"]
+	path = src/main/flatbuffer
+	url = https://github.com/google/flatbuffers.git

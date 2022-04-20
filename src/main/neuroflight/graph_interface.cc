@@ -31,6 +31,7 @@ void infer(float *input, int input_size, float *output, const uint8_t* model_dat
 	
 	TfLiteStatus allocate_status = interpreter.AllocateTensors();
 	infer_time = micros() - before_reading;
+	asm volatile("mov r0, sp\n");
 	// if (allocate_status != kTfLiteOk) {
 	// 	serialPrint(getUART4(), "AllocateTensors() failed");
 	// 	while(1);
