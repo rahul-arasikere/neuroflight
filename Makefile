@@ -52,6 +52,9 @@ BIN_DIR         := $(ROOT)/obj
 CMSIS_DIR       := $(ROOT)/lib/main/CMSIS
 INCLUDE_DIRS    := $(SRC_DIR) \
 				   $(ROOT)/src/main/tflite_micro \
+				   $(ROOT)/src/main/flatbuffer/include \
+				   $(ROOT)/src/main/gemmlowp \
+				   $(ROOT)/src/main/ruy \
                    $(ROOT)/src/main/target
 LINKER_DIR      := $(ROOT)/src/main/target/link
 
@@ -244,6 +247,7 @@ CXXFLAGS     += $(ARCH_FLAGS) \
               -fno-use-cxa-atexit \
               -DTF_LITE_STATIC_MEMORY \
               -MMD -MP \
+			  -fno-rtti -fno-exceptions \
               $(EXTRA_FLAGS)
 
 

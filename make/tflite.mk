@@ -4,18 +4,23 @@ TFLITE_SRCS = \
 	$(TF_DIR)/micro/simple_memory_allocator.cc \
 	$(TF_DIR)/micro/memory_helpers.cc \
 	$(TF_DIR)/micro/test_helpers.cc \
+	$(TF_DIR)/micro/micro_context.cc \
+	$(TF_DIR)/micro/micro_graph.cc \
 	$(TF_DIR)/micro/micro_utils.cc \
+	$(TF_DIR)/micro/micro_resource_variable.cc \
+	$(TF_DIR)/micro/flatbuffer_utils.cc \
 	$(TF_DIR)/micro/recording_micro_allocator.cc \
 	$(TF_DIR)/micro/micro_error_reporter.cc \
-	$(TF_DIR)/micro/micro_time.cc \
+	$(TF_DIR)/micro/cortex_m_generic/micro_time.cc \
 	$(TF_DIR)/micro/recording_simple_memory_allocator.cc \
 	$(TF_DIR)/micro/micro_string.cc \
 	$(TF_DIR)/micro/micro_profiler.cc \
-	$(TF_DIR)/micro/debug_log.cc \
+	$(TF_DIR)/micro/cortex_m_generic/debug_log.cc \
 	$(TF_DIR)/micro/system_setup.cc \
 	$(TF_DIR)/micro/all_ops_resolver.cc \
 	$(TF_DIR)/micro/micro_interpreter.cc \
 	$(TF_DIR)/micro/micro_allocator.cc \
+	$(TF_DIR)/micro/micro_allocation_info.cc \
 	$(TF_DIR)/micro/memory_planner/linear_memory_planner.cc \
 	$(TF_DIR)/micro/memory_planner/greedy_memory_planner.cc \
 	$(TF_DIR)/c/common.cc \
@@ -28,6 +33,7 @@ TFLITE_SRCS = \
 	$(TF_DIR)/schema/schema_utils.cc \
 	$(TF_DIR)/micro/kernels/activations.cc \
 	$(TF_DIR)/micro/kernels/add.cc \
+	$(TF_DIR)/micro/kernels/add_common.cc \
 	$(TF_DIR)/micro/kernels/add_n.cc \
 	$(TF_DIR)/micro/kernels/arg_min_max.cc \
 	$(TF_DIR)/micro/kernels/batch_to_space_nd.cc \
@@ -66,6 +72,7 @@ TFLITE_SRCS = \
 	$(TF_DIR)/micro/kernels/log_softmax.cc \
 	$(TF_DIR)/micro/kernels/maximum_minimum.cc \
 	$(TF_DIR)/micro/kernels/mul.cc \
+	$(TF_DIR)/micro/kernels/mul_common.cc \
 	$(TF_DIR)/micro/kernels/neg.cc \
 	$(TF_DIR)/micro/kernels/pack.cc \
 	$(TF_DIR)/micro/kernels/pad.cc \
@@ -87,6 +94,7 @@ TFLITE_SRCS = \
 	$(TF_DIR)/micro/kernels/squeeze.cc \
 	$(TF_DIR)/micro/kernels/strided_slice.cc \
 	$(TF_DIR)/micro/kernels/sub.cc \
+	$(TF_DIR)/micro/kernels/sub_common.cc \
 	$(TF_DIR)/micro/kernels/svdf.cc \
 	$(TF_DIR)/micro/kernels/svdf_common.cc \
 	$(TF_DIR)/micro/kernels/tanh.cc \
@@ -100,5 +108,12 @@ NEUROFLIGHT_SRCS := \
 					$(wildcard $(SRC_DIR)/neuroflight/*.c) \
 					$(wildcard $(SRC_DIR)/neuroflight/*.cc)
 
-SRC += $(TFLITE_SRCS) $(NEUROFLIGHT_SRCS)
+RUY_DIR = ruy/ruy/profiler
+
+RUY_SRC = \
+	$(RUY_DIR)/instrumentation.cc \
+	$(RUY_DIR)/profiler.cc \
+	$(RUY_DIR)/treeview.cc 
+
+SRC += $(TFLITE_SRCS) $(NEUROFLIGHT_SRCS) $(RUY_SRC)
 

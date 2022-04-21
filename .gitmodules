@@ -4,3 +4,9 @@
 [submodule "src/main/flatbuffer"]
 	path = src/main/flatbuffer
 	url = https://github.com/google/flatbuffers.git
+[submodule "src/main/gemmlowp"]
+	path = src/main/gemmlowp
+	url = https://github.com/google/gemmlowp.git
+[submodule "src/main/ruy"]
+	path = src/main/ruy
+	url = https://github.com/google/ruy.git
